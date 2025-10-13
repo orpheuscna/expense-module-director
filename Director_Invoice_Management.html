@@ -2,8 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- build-version: 2025-10-13-1 -->
-<meta name="build-version" content="2025-10-13-1">
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Invoice Management</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -71,6 +69,15 @@
           <option>Consulting</option>
           <option>Logistics</option>
           <option>Maintenance</option>
+        </select>
+        <select id="statusFilter" class="filter" title="Filter by status">
+          <option value="">All statuses</option>
+          <option value="pending_approval">Pending Approval</option>
+          <option value="pending_review">Pending Review</option>
+	  <option value="approved_electronic">Approved (Electronic)</option>
+	  <option value="approved_physical">Approved (Physical)</option>
+          <option value="changes_requested">Changes Requested</option>
+          <option value="rejected">Rejected</option>
         </select>
 
         <div id="showCompletedWrap" style="display:flex;align-items:center;gap:8px;margin-left:6px">
@@ -448,4 +455,3 @@
   </script>
 </body>
 </html>
-
