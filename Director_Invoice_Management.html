@@ -236,15 +236,27 @@
       }
     }
 
+    // read filter values robustly (supporting the existing IDs)
+    function readFilters(){
+      const qEl = document.getElementById('d_q') || document.getElementById('q');
+      const q = qEl ? String(qEl.value||'').trim().toLowerCase() : '';
+      const fromEl = document.getElementById('d_dateFrom') || document.getElementById('dateFrom');
+      const toEl = document.getElementById('d_dateTo') || document.getElementById('dateTo');
+      const from = fromEl ? (fromEl.value || '') : '';
+      const to = toEl ? (toEl.value || '') : '';
+      const catEl = document.getElementById('d_categoryFilter') || document.getElementById('categoryFilter');
+      const cat = catEl ? String(catEl.value||'').trim() : '';
+      const sc = document.getElementById('showCompleted');
+      const showCompleted = sc ? sc.checked : false;
+      const tagEl = document.getElementById('completionTagFilter');
+      const tag = tagEl ? String(tagEl.value||'').trim() : '';
+      return { q, from, to, cat, showCompleted, tag };
+    }
+
     function renderInbox(){
       const tbody = $('inboxBody'); tbody.innerHTML = '';
-      const q = ($('d_q') && $('d_q').value.toLowerCase()) || '';
-      const from = $('d_dateFrom') ? $('d_dateFrom').value : '';
-      const to = $('d_dateTo') ? $('d_dateTo').value : '';
-      const cat = $('d_categoryFilter') ? $('d_categoryFilter').value : '';
-      const showCompleted = $('showCompleted') && $('showCompleted').checked;
-      const tagFilterEl = document.getElementById('completionTagFilter');
-      const tagFilter = tagFilterEl ? (tagFilterEl.value || '').trim() : '';
+      const f = readFilters();
+      const q = f.q, from = f.from, to = f.to, cat = f.cat, showCompleted = f.showCompleted, tagFilter = f.tag;
 
       invoices.forEach(inv=>{
         if(showCompleted){
@@ -254,12 +266,14 @@
           if(inv.status !== 'pending_approval') return;
         }
 
-        if(cat && cat !== '' && inv.category !== cat) return;
+        if(cat && cat !== '' && String(inv.category||'') !== cat) return;
         if(!inDateRange(inv.date, from, to)) return;
+
         if(q){
-          const matches = (inv.vendor||'').toLowerCase().includes(q) || (inv.number||'').toLowerCase().includes(q);
+          const matches = (String(inv.vendor||'').toLowerCase().includes(q)) || (String(inv.number||'').toLowerCase().includes(q));
           if(!matches) return;
         }
+
         if(tagFilter){
           if ((inv.completionTag||'') !== tagFilter) return;
         }
@@ -286,6 +300,7 @@
         tbody.appendChild(tr);
       });
 
+      // wire row-select handlers to show bulk bar
       document.querySelectorAll('.row-select').forEach(cb=>{
         cb.onchange = ()=> {
           const any = document.querySelectorAll('.row-select:checked').length > 0;
@@ -418,19 +433,13 @@
       renderInbox();
     });
 
-    function createCompletionTagSelect() {
-      const sel = document.createElement('select');
-      sel.id = 'completionTagFilter';
-      sel.className = 'filter';
-      sel.style.maxWidth = '200px';
-      sel.innerHTML = '<option value="">Any completion tag</option>'
-                    + '<option>Sent to TRG</option>'
-                    + '<option>Will be reimbursed on payday</option>'
-                    + '<option>Will pay in cash</option>'
-                    + '<option>Rejected</option>';
-      sel.addEventListener('input', () => renderInbox());
-      return sel;
-    }
+    // wire the inputs to re-render for different IDs (robust)
+    ['d_q','q','d_dateFrom','dateFrom','d_dateTo','dateTo','d_categoryFilter','categoryFilter','statusFilter','d_categoryFilter'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      const ev = (el.tagName === 'SELECT') ? 'change' : 'input';
+      el.addEventListener(ev, renderInbox);
+    });
 
     // initial render
     renderInbox();
