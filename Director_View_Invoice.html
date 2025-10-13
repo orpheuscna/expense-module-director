@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Invoice Review — Director View</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0b5cff; --navy:#08306b; --muted:#6b7280; --bg:#f5f7fb;
+    --card:#ffffff; --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+  .panel {width:100vw; height:100vh; max-width:1600px; margin:0 auto; background:#fff; display:grid; grid-template-columns:40% 60%; overflow:hidden; box-shadow:0 24px 60px rgba(2,6,23,0.08)}
+  .panel .viewer{background:#f8fafc; display:flex; flex-direction:column}
+  .panel header{padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+  .fld {margin-bottom:8px}
+  .fld label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .fld input, .fld select, .fld textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef6;font-size:14px}
+  .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
+  .upload-neutral{background:transparent;color:var(--navy);padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;border:0}
+  table.line-items{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+  table.line-items th, table.line-items td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+  table.line-items th{background:#fbfdff;font-weight:700;color:var(--muted)}
+  .support-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .support-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px dashed #eef4ff;border-radius:8px;background:#fff}
+  .support-item .meta { display:flex; flex-direction:column; gap:4px; }
+  .support-item .meta > div:first-child { font-size:13px; font-weight:700; } /* reduce file name size */
+  .support-item .tag { font-size:12px; color:var(--muted); }
+  .support-header { font-weight:800; font-size:16px; margin-bottom:6px; } /* increase Supporting documents headline */
+  .totals-block{display:flex;justify-content:flex-end;margin-top:12px;align-items:flex-end}
+  .totals-inner{width:320px}
+  .small-muted{color:var(--muted);font-size:13px}
+  .btn { padding:8px 12px; border-radius:8px; border: none; cursor:pointer; font-size:14px; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-outline { background:#fff;border:1px solid #e6eef6;color:var(--navy); }
+  .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:800}
+  .modal{width:720px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3)}
+  .modal h3{margin:0 0 8px 0}
+  .audit-list{font-size:13px;color:var(--muted);margin-top:12px;max-height:140px;overflow:auto}
+  #panelTitle { display:block; }
+  #panelStatus { margin-top:12px; }            
+  #detailInvId { display:block; }
+  #detailSubtitle { margin-top:12px; margin-bottom:14px; }  
+  #vendorName { margin-bottom:14px; }         
+  #infoDate { margin-top:12px; }              
+  .doc-viewer { border:1px solid #e6eef6; border-radius:8px; background:#fff; padding:12px; max-height:560px; overflow:auto; }
+  .doc-actions { display:flex; gap:8px; margin-top:10px; justify-content:flex-end; }
+  .pr, .po, .contract { font-size:14px; line-height:1.45; color:#0f172a; }
+  .pr .header, .po .header, .contract .c-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+  .pr .box { border:1px solid #eef4ff; padding:10px; border-radius:8px; background:#fbfdff; }
+  .po .box { border:1px solid #eef4ff; padding:10px; border-radius:8px; background:#fffaf6; }
+  .contract .box { border:1px solid #eef4ff; padding:10px; border-radius:8px; background:#fff; }
+  .signature-area { margin-top:16px; border-top:1px dashed #e6eef6; padding-top:10px; display:flex; justify-content:space-between; align-items:center; }
+  @media(max-width:1000px){ .panel{grid-template-columns:1fr} .panel .viewer{height:36vh} .modal{width:96%} }
+</style>
+</head>
+<body>
+
+<div class="panel" role="main" aria-labelledby="panelTitle">
+  <!-- Left: Viewer -->
+  <div class="viewer" role="region" aria-label="Invoice preview">
+    <header>
+      <div>
+        <strong id="panelTitle">INV-xxxx</strong>
+        <div class="small" id="panelStatus" style="margin-top:4px">Needs Director action</div>
+      </div>
+      <div>
+        <button id="closeBtn" class="action-btn" title="Back to dashboard">Close</button>
+      </div>
+    </header>
+
+    <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; height:calc(100% - 64px)">
+      <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
+        <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <div><strong>Invoice</strong> <span id="viewInvId">INV-xxxx</span></div>
+          <div><strong>Date</strong> <span id="viewDate">YYYY-MM-DD</span></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <div><strong>Bill To</strong><br/><span id="viewBillTo">Company</span></div>
+          <div><strong>Due</strong> <span id="viewDue">YYYY-MM-DD</span></div>
+        </div>
+
+        <div style="margin-top:12px;font-weight:700">Items</div>
+
+        <table style="width:100%;border-collapse:collapse;margin-top:8px">
+          <thead>
+            <tr style="background:#fbfdff">
+              <th style="text-align:left;padding:8px">Description</th>
+              <th style="padding:8px;width:80px">Qty</th>
+              <th style="padding:8px;width:120px">Unit</th>
+              <th style="padding:8px;width:120px">Tax</th>
+              <th style="padding:8px;width:140px">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="viewTableBody"></tbody>
+        </table>
+
+        <div class="totals-block" style="margin-top:12px">
+          <div class="totals-inner" id="viewTotals">
+            <div style="display:flex;justify-content:space-between"><div class="small-muted">Subtotal</div><div style="font-weight:800" id="viewSubtotal">$0.00</div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px"><div class="small-muted">Total Tax</div><div style="font-weight:800" id="viewTotalTax">$0.00</div></div>
+            <div style="border-top:1px solid #eef4ff;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:900">Grand Total</div><div style="font-weight:900" id="viewGrandTotal">$0.00</div></div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;font-size:13px;color:var(--muted)" id="viewAttached">Attached: —</div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="action-btn viewer-btn" data-zoom="-1">Zoom −</button>
+        <button class="action-btn viewer-btn" data-zoom="1">Zoom +</button>
+        <button class="action-btn" id="downloadDoc">Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Review Details for Director -->
+  <div style="padding:0;display:flex;flex-direction:column;overflow:auto" role="region" aria-label="Invoice review">
+    <div style="padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;flex-direction:column">
+        <div style="font-weight:800" id="detailInvId">INV-xxxx</div>
+        <div class="small" id="detailSubtitle">Uploaded: YYYY-MM-DD • Vendor: ACME Supplies Co.</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="approveBtn" class="btn btn-primary">Approve</button>
+        <button id="requestBtn" class="btn btn-outline">Request Changes</button>
+        <button id="rejectBtn" class="btn btn-danger">Reject</button>
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label class="small-muted">Vendor</label>
+        <div style="font-weight:700" id="vendorName">ACME Supplies Co.</div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="small-muted">Invoice Date</label>
+          <div id="infoDate">2025-10-25</div>
+        </div>
+        <div style="width:180px">
+          <label class="small-muted">Total</label>
+          <div id="infoTotal" style="font-weight:800">$330.00</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">Line items</div>
+        <table class="line-items" id="lineItemsTable" aria-label="Line items table">
+          <thead>
+            <tr><th style="width:40%">Description</th><th style="width:12%">Quantity</th><th style="width:16%">Unit Price</th><th style="width:16%">Tax</th><th style="width:16%">Amount</th></tr>
+          </thead>
+          <tbody id="detailLines"></tbody>
+        </table>
+
+        <div class="totals-block" style="margin-top:8px">
+          <div class="totals-inner">
+            <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Subtotal</div><div id="subtotalDisplay" style="font-weight:800">$0.00</div></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Total Tax</div><div id="totalTaxDisplay" style="font-weight:800">$0.00</div></div>
+            <div style="border-top:1px solid #eef4ff;margin-top:6px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:800">Grand Total</div><div id="grandTotalDisplay" style="font-weight:900">$0.00</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="support-header">Supporting documents</div>
+        <div id="supportList" class="support-list" aria-live="polite"></div>
+        <div class="small-muted" style="margin-top:8px">Open Payment Request and Payment Order and sign electronically or mark "Will sign physically". Open contract to review terms. Approve when signing is complete.</div>
+      </div>
+
+      <div>
+        <label class="small-muted">Director notes</label>
+        <textarea id="directorNote" rows="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef6"></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+        <button id="closePanelFooter" class="action-btn">Close</button>
+      </div>
+
+      <div style="margin-top:6px">
+        <div style="font-weight:700">Audit trail</div>
+        <div class="audit-list" id="auditList" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Document viewer modal (used for supporting docs, including Payment Request/Order and Contract) -->
+<div id="modalDoc" class="modal-backdrop" role="dialog" aria-hidden="true">
+  <div class="modal" role="document" aria-labelledby="docTitle">
+    <h3 id="docTitle">Document</h3>
+    <div class="doc-viewer" id="docContent" tabindex="0">
+      <div id="docInner">Loading document...</div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div id="docTypeLine" class="small-muted"></div>
+      <div id="docSignedLine" style="margin-top:6px" class="small-muted"></div>
+    </div>
+
+    <div class="doc-actions">
+      <button id="docDownload" class="action-btn">Download</button>
+      <button id="docMarkPhysical" class="action-btn">Will sign physically</button>
+      <button id="docSignElectronic" class="btn btn-primary">Sign electronically</button>
+      <button id="docClose" class="action-btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reason modal -->
+<div id="modalReason" class="modal-backdrop" role="dialog" aria-hidden="true">
+  <div class="modal" role="document" aria-labelledby="reasonTitle">
+    <h3 id="reasonTitle">Reason</h3>
+    <p class="small-muted" id="reasonSubtitle">Provide a reason</p>
+    <textarea id="reasonText" rows="5" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e6eef6"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button id="reasonCancel" class="action-btn">Cancel</button>
+      <button id="reasonConfirm" class="btn btn-primary">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const INVOICE_DB = {
+    'INV-2025-001': {
+      id: 'INV-2025-001',
+      vendor: 'ACME Supplies Co.',
+      date: '2025-10-25',
+      due: '2025-11-24',
+      billTo: 'HR Department\nCompany XYZ\n123 Nguyen Van Linh',
+      total: '$330.00',
+      subtitle: 'Uploaded: 2025-10-26 • Vendor: ACME Supplies Co.',
+      lines: [
+        { desc:'Printer paper A4', qty:10, unit:7.50, tax:0.00 },
+        { desc:'Toner cartridge', qty:3, unit:75.00, tax:0.00 }
+      ],
+      attached: [
+        { name: 'PaymentRequest_INV-2025-001.pdf', type: 'Payment Request' },
+        { name: 'PaymentOrder_INV-2025-001.pdf', type: 'Payment Order' },
+        { name: 'Contract_2025_01.pdf', type: 'Contract' }
+      ],
+      notes: 'Missing delivery slip'
+    }
+  };
+
+  const SIGNED_PAYMENTS = {};
+  const AUDIT = [];
+  function addAudit(action, actor='Director', note=''){ AUDIT.unshift({ time:new Date().toLocaleString(), action, actor, note }); renderAudit(); }
+  function renderAudit(){ const el=document.getElementById('auditList'); el.innerHTML = AUDIT.map(a=>`<div style="padding:8px;border-bottom:1px solid #f1f5f9"><div style="font-weight:700">${escapeHtml(a.action)}</div><div class="small-muted">${escapeHtml(a.actor)} • ${escapeHtml(a.time)}</div><div style="margin-top:6px">${escapeHtml(a.note||'')}</div></div>`).join(''); }
+
+  function getQueryParam(name){ const params=new URLSearchParams(window.location.search); return params.get(name); }
+  function escapeHtml(str){ return String(str).replace(/[&<>"'`=\/]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[s]); }
+  function parseMoney(v){ if(typeof v!=='string') v=String(v||''); v=v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
+  function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
+
+  function computeTotals(){
+    let subtotal=0,totalTax=0,grand=0;
+    document.querySelectorAll('#viewTableBody tr').forEach(r=>{
+      const cells=r.cells;
+      const amt=parseMoney(cells[4].textContent);
+      const tax=parseMoney(cells[3].textContent);
+      subtotal += parseMoney(cells[2].textContent) * parseFloat(cells[1].textContent || 1);
+      totalTax += tax;
+      grand += amt;
+    });
+    document.getElementById('subtotalDisplay').textContent = fmtMoney(subtotal);
+    document.getElementById('totalTaxDisplay').textContent = fmtMoney(totalTax);
+    document.getElementById('grandTotalDisplay').textContent = fmtMoney(grand);
+    document.getElementById('viewSubtotal').textContent = fmtMoney(subtotal);
+    document.getElementById('viewTotalTax').textContent = fmtMoney(totalTax);
+    document.getElementById('viewGrandTotal').textContent = fmtMoney(grand);
+    return { subtotal, totalTax, grand };
+  }
+
+  function renderSupportList(attached){
+    const list=document.getElementById('supportList'); list.innerHTML='';
+    const ordered = attached.slice().sort((a,b)=>{
+      const rank = d => d.type==='Payment Request'?1: d.type==='Payment Order'?2:3;
+      return rank(a)-rank(b);
+    });
+    ordered.forEach((doc, idx)=>{
+      const id='doc-'+idx;
+      const signed = SIGNED_PAYMENTS[id];
+      const signedLine = signed ? `• Signed: ${signed.method} ${signed.time}` : '';
+      const item=document.createElement('div');
+      item.className='support-item';
+      item.dataset.fileid=id;
+      item.dataset.filename=doc.name;
+      item.dataset.filetype=doc.type||'Document';
+      item.innerHTML = `<div class="meta"><div>${escapeHtml(doc.name)}</div><div class="tag small">${escapeHtml(doc.type||'Document')} ${signedLine}</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="action-btn view-support" data-fileid="${id}">View</button>
+          <button class="action-btn download-support" data-fileid="${id}">Download</button>
+        </div>`;
+      list.appendChild(item);
+    });
+    updateViewAttached();
+  }
+
+  function updateViewAttached(){
+    const list=document.getElementById('supportList');
+    const names=Array.from(list.querySelectorAll('.support-item')).map(it=>it.dataset.filename);
+    document.getElementById('viewAttached').textContent='Attached: '+(names.length?names.join(', '):'—');
+  }
+
+  const modalDoc=document.getElementById('modalDoc');
+  const docInner=document.getElementById('docInner');
+  const docTypeLine=document.getElementById('docTypeLine');
+  const docSignedLine=document.getElementById('docSignedLine');
+  let currentDoc=null;
+
+  document.getElementById('supportList').addEventListener('click', function(e){
+    const vw=e.target.closest('.view-support');
+    const dl=e.target.closest('.download-support');
+    if(vw){ const parent=vw.closest('.support-item'); openDocumentViewer(parent.dataset.fileid, parent.dataset.filename, parent.dataset.filetype); }
+    if(dl){ const parent=dl.closest('.support-item'); alert('Download (demo): '+parent.dataset.filename); }
+  });
+
+  function renderPaymentRequestPreview(filename){
+    const invoiceRef='INV-2025-001', vendor='ACME Supplies Co.', requestDate='2025-10-26', amount='$330.00';
+    return `
+      <div class="pr">
+        <div class="header">
+          <div><div style="font-weight:900;font-size:16px">Payment Request</div><div style="color:var(--muted);margin-top:6px">${escapeHtml(vendor)}</div></div>
+          <div style="text-align:right"><div style="font-weight:700">${escapeHtml(filename)}</div><div class="small-muted" style="margin-top:6px">Date: ${escapeHtml(requestDate)}</div></div>
+        </div>
+        <div class="pr-box"><div class="box"><div><strong>To:</strong> Finance Department</div><div style="margin-top:6px"><strong>Invoice ref:</strong> ${escapeHtml(invoiceRef)}</div><div style="margin-top:6px"><strong>Amount requested:</strong> <span style="font-weight:800">${escapeHtml(amount)}</span></div><div style="margin-top:8px">Please approve and sign the payment request so the Assistant can arrange payment processing.</div></div></div>
+        <div style="margin-top:12px"><div><strong>Details</strong></div><ul style="margin-top:6px"><li>Vendor bank: ACME Bank</li><li>Account: 123-456-789</li><li>Payment terms: Net 30</li></ul></div>
+        <div class="signature-area"><div><div style="font-size:13px;color:var(--muted)">Director signature</div><div id="previewSignature" style="margin-top:6px;color:var(--muted)">Not signed</div></div><div id="signatureControls"><button id="modalSignElectronic" class="btn btn-primary">Sign electronically</button><button id="modalMarkPhysical" class="action-btn">Will sign physically</button></div></div>
+    `;
+  }
+
+  function renderPaymentOrderPreview(filename){
+    const invoiceRef='INV-2025-001', vendor='ACME Supplies Co.', orderDate='2025-10-26', amount='$330.00';
+    return `
+      <div class="po">
+        <div class="header">
+          <div><div style="font-weight:900;font-size:16px">Payment Order</div><div style="color:var(--muted);margin-top:6px">${escapeHtml(vendor)}</div><div class="small-muted" style="margin-top:6px">Send to: TRG Head Office</div></div>
+          <div style="text-align:right"><div style="font-weight:700">${escapeHtml(filename)}</div><div class="small-muted" style="margin-top:6px">Date: ${escapeHtml(orderDate)}</div></div>
+        </div>
+        <div class="box"><div><strong>Order reference:</strong> ${escapeHtml(invoiceRef)}</div><div style="margin-top:6px"><strong>Amount:</strong> <span style="font-weight:800">${escapeHtml(amount)}</span></div><div class="note" style="margin-top:8px">Note: Use this payment order when the local office cannot process the payment and requires TRG to execute the transfer.</div></div>
+        <div style="margin-top:12px"><div><strong>Bank instructions</strong></div><ul style="margin-top:6px"><li>Bank: ACME Bank</li><li>Account: 123-456-789</li><li>Swift: ACMEVNXX</li></ul></div>
+        <div class="signature-area"><div><div style="font-size:13px;color:var(--muted)">Director authorization</div><div id="previewSignaturePO" style="margin-top:6px;color:var(--muted)">Not signed</div></div><div id="poSignatureControls"><button id="modalSignElectronicPO" class="btn btn-primary">Sign electronically</button><button id="modalMarkPhysicalPO" class="action-btn">Will sign physically</button></div></div>
+    `;
+  }
+
+  function renderContractPreview(filename){
+    const vendor='ACME Supplies Co.', contractDate='2025-09-01';
+    return `
+      <div class="contract">
+        <div class="c-header"><div><div style="font-weight:900;font-size:16px">Service Contract</div><div style="color:var(--muted);margin-top:6px">${escapeHtml(vendor)}</div></div><div style="text-align:right"><div style="font-weight:700">${escapeHtml(filename)}</div><div class="small-muted" style="margin-top:6px">Effective date: ${escapeHtml(contractDate)}</div></div></div>
+        <div><strong>Parties</strong></div><div class="clause">This Contract is between ACME Supplies Co. ("Supplier") and Company XYZ ("Client") for the supply of office goods and related services.</div>
+        <div style="margin-top:10px"><strong>Scope</strong></div><div class="clause">Supplier will provide office supplies as listed in confirmed purchase orders. Delivery and acceptance terms follow standard company policy.</div>
+        <div style="margin-top:10px"><strong>Payment</strong></div><div class="clause">Payments due within 30 days of invoice. Payment methods per Supplier bank details provided to Finance.</div>
+        <div style="margin-top:10px"><strong>Term and Termination</strong></div><div class="clause">This Contract remains in effect until terminated by either party with 30 days written notice.</div>
+        <div style="margin-top:12px"><div style="font-weight:700">Signatures</div><div style="display:flex;gap:16px;margin-top:8px"><div class="box" style="flex:1"><div class="small-muted">Supplier</div><div style="margin-top:12px">ACME Supplies Co.</div></div><div class="box" style="flex:1"><div class="small-muted">Client</div><div style="margin-top:12px">Company XYZ</div></div></div></div>
+    `;
+  }
+
+  function openDocumentViewer(id, filename, type){
+    currentDoc={id,filename,type};
+    document.getElementById('docTitle').textContent=filename;
+
+    if(filename==='PaymentRequest_INV-2025-001.pdf'){
+      docInner.innerHTML=renderPaymentRequestPreview(filename);
+      docTypeLine.textContent=`Document type: ${type||'Payment Request'}`;
+      const signed=SIGNED_PAYMENTS[id];
+      if(signed){
+        docSignedLine.textContent=`Signed: ${signed.method} at ${signed.time}`;
+        document.getElementById('docSignElectronic').style.display='none';
+        document.getElementById('docMarkPhysical').style.display='inline-block';
+        const p=document.getElementById('previewSignature'); if(p) p.textContent = signed.method==='electronic'?`Signed electronically at ${signed.time}`:`Marked for physical signature at ${signed.time}`;
+      } else {
+        docSignedLine.textContent=''; document.getElementById('docSignElectronic').style.display='inline-block'; document.getElementById('docMarkPhysical').style.display='inline-block';
+      }
+      const elSign=document.getElementById('modalSignElectronic');
+      const elPhys=document.getElementById('modalMarkPhysical');
+      if(elSign){ elSign.onclick=function(){ const note=prompt('Optional signing note (demo):','')||''; const time=new Date().toLocaleString(); SIGNED_PAYMENTS[id]={method:'electronic',time,note}; addAudit(`Signed ${filename} electronically`,'Director',note); const p=document.getElementById('previewSignature'); if(p) p.textContent=`Signed electronically at ${time}`; docSignedLine.textContent=`Signed: electronic at ${time}`; document.getElementById('docSignElectronic').style.display='none'; renderSupportList(INVOICE_DB[getQueryParam('inv')||'INV-2025-001'].attached); closeModal(modalDoc); }; }
+      if(elPhys){ elPhys.onclick=function(){ const note=prompt('Optional note for physical signing (demo):','')||''; const time=new Date().toLocaleString(); SIGNED_PAYMENTS[id]={method:'physical',time,note}; addAudit(`Marked ${filename} for physical signature`,'Director',note); const p=document.getElementById('previewSignature'); if(p) p.textContent=`Marked for physical signature at ${time}`; docSignedLine.textContent=`Marked: will sign physically at ${time}`; document.getElementById('docSignElectronic').style.display='none'; renderSupportList(INVOICE_DB[getQueryParam('inv')||'INV-2025-001'].attached); closeModal(modalDoc); }; }
+    }
+    else if(filename==='PaymentOrder_INV-2025-001.pdf'){
+      docInner.innerHTML=renderPaymentOrderPreview(filename);
+      docTypeLine.textContent=`Document type: ${type||'Payment Order'}`;
+      const signed=SIGNED_PAYMENTS[id];
+      if(signed){
+        docSignedLine.textContent=`Signed: ${signed.method} at ${signed.time}`;
+        document.getElementById('docSignElectronic').style.display='none';
+        document.getElementById('docMarkPhysical').style.display='inline-block';
+        const p=document.getElementById('previewSignaturePO'); if(p) p.textContent = signed.method==='electronic'?`Signed electronically at ${signed.time}`:`Marked for physical signature at ${signed.time}`;
+      } else {
+        docSignedLine.textContent=''; document.getElementById('docSignElectronic').style.display='inline-block'; document.getElementById('docMarkPhysical').style.display='inline-block';
+      }
+      const elSignPO=document.getElementById('modalSignElectronicPO');
+      const elPhysPO=document.getElementById('modalMarkPhysicalPO');
+      if(elSignPO){ elSignPO.onclick=function(){ const note=prompt('Optional signing note (demo):','')||''; const time=new Date().toLocaleString(); SIGNED_PAYMENTS[id]={method:'electronic',time,note}; addAudit(`Signed ${filename} electronically`,'Director',note); const p=document.getElementById('previewSignaturePO'); if(p) p.textContent=`Signed electronically at ${time}`; docSignedLine.textContent=`Signed: electronic at ${time}`; document.getElementById('docSignElectronic').style.display='none'; renderSupportList(INVOICE_DB[getQueryParam('inv')||'INV-2025-001'].attached); closeModal(modalDoc); }; }
+      if(elPhysPO){ elPhysPO.onclick=function(){ const note=prompt('Optional note for physical signing (demo):','')||''; const time=new Date().toLocaleString(); SIGNED_PAYMENTS[id]={method:'physical',time,note}; addAudit(`Marked ${filename} for physical signature`,'Director',note); const p=document.getElementById('previewSignaturePO'); if(p) p.textContent=`Marked for physical signature at ${time}`; docSignedLine.textContent=`Marked: will sign physically at ${time}`; document.getElementById('docSignElectronic').style.display='none'; renderSupportList(INVOICE_DB[getQueryParam('inv')||'INV-2025-001'].attached); closeModal(modalDoc); }; }
+    }
+    else if(filename==='Contract_2025_01.pdf'){
+      docInner.innerHTML=renderContractPreview(filename);
+      docTypeLine.textContent=`Document type: ${type||'Contract'}`;
+      const signed=SIGNED_PAYMENTS[id];
+      docSignedLine.textContent = signed?`Signed: ${signed.method} at ${signed.time}`:'';
+      document.getElementById('docSignElectronic').style.display='none';
+      document.getElementById('docMarkPhysical').style.display='none';
+    }
+    else {
+      docInner.innerHTML=`<div style="font-weight:700;margin-bottom:8px">${escapeHtml(filename)}</div><div>Preview: generic support document.</div>`;
+      docTypeLine.textContent=`Document type: ${type||'Document'}`;
+      const signed=SIGNED_PAYMENTS[id];
+      if(signed){ docSignedLine.textContent=`Signed: ${signed.method} at ${signed.time}`; document.getElementById('docSignElectronic').style.display='none'; document.getElementById('docMarkPhysical').style.display='inline-block'; }
+      else { docSignedLine.textContent=''; document.getElementById('docSignElectronic').style.display='none'; document.getElementById('docMarkPhysical').style.display='none'; }
+    }
+    openModal(modalDoc);
+  }
+
+  function closeModal(modal){ modal.style.display='none'; modal.setAttribute('aria-hidden','true'); }
+  function openModal(modal){ modal.style.display='flex'; modal.setAttribute('aria-hidden','false'); }
+
+  document.getElementById('docClose').addEventListener('click', ()=> closeModal(modalDoc));
+  document.getElementById('docDownload').addEventListener('click', ()=> { if(!currentDoc) return; alert('Download (demo): '+currentDoc.filename); });
+
+  document.getElementById('docSignElectronic').addEventListener('click', ()=> {
+    if(!currentDoc) return;
+    const note=prompt('Optional signing note (demo):','')||'';
+    const time=new Date().toLocaleString();
+    SIGNED_PAYMENTS[currentDoc.id]={method:'electronic',time,note};
+    addAudit(`Signed ${currentDoc.filename} electronically`,'Director',note);
+    docSignedLine.textContent=`Signed: electronic at ${time}`;
+    document.getElementById('docSignElectronic').style.display='none';
+    renderSupportList(INVOICE_DB[getQueryParam('inv')||'INV-2025-001'].attached);
+    closeModal(modalDoc);
+  });
+
+  document.getElementById('docMarkPhysical').addEventListener('click', ()=> {
+    if(!currentDoc) return;
+    const note=prompt('Optional note for physical signing (demo):','')||'';
+    const time=new Date().toLocaleString();
+    SIGNED_PAYMENTS[currentDoc.id]={method:'physical',time,note};
+    addAudit(`Marked ${currentDoc.filename} for physical signature`,'Director',note);
+    docSignedLine.textContent=`Marked: will sign physically at ${time}`;
+    document.getElementById('docSignElectronic').style.display='none';
+    renderSupportList(INVOICE_DB[getQueryParam('inv')||'INV-2025-001'].attached);
+    closeModal(modalDoc);
+  });
+
+  const modalReason=document.getElementById('modalReason');
+  let reasonContext=null;
+  document.getElementById('requestBtn').addEventListener('click', ()=> { reasonContext={action:'request'}; openReasonModal('Request changes — enter reason','Please explain required changes to the Assistant'); });
+  document.getElementById('rejectBtn').addEventListener('click', ()=> { reasonContext={action:'reject'}; openReasonModal('Reject invoice — reason','This reason will be recorded in the audit trail'); });
+  function openReasonModal(title, subtitle){ document.getElementById('reasonTitle').textContent=title; document.getElementById('reasonSubtitle').textContent=subtitle; document.getElementById('reasonText').value=''; openModal(modalReason); }
+  document.getElementById('reasonCancel').addEventListener('click', ()=> closeModal(modalReason));
+  document.getElementById('reasonConfirm').addEventListener('click', ()=> {
+    const txt=document.getElementById('reasonText').value.trim(); if(!txt){ alert('Please enter a reason'); return; }
+    if(!reasonContext) return closeModal(modalReason);
+    if(reasonContext.action==='request'){ addAudit('Requested changes','Director',txt); document.getElementById('panelStatus').textContent='Changes requested'; alert('Request sent to Assistant (demo).'); }
+    else if(reasonContext.action==='reject'){ addAudit('Rejected','Director',txt); document.getElementById('panelStatus').textContent='Rejected'; alert('Invoice rejected (demo).'); }
+    closeModal(modalReason);
+    // After confirming Request Changes or Reject, return to Director_Invoice_Management.html
+    window.location.href = 'Director_Invoice_Management.html';
+  });
+
+  document.getElementById('approveBtn').addEventListener('click', ()=> {
+    const invId=getQueryParam('inv')||'INV-2025-001'; const data=INVOICE_DB[invId]||INVOICE_DB['INV-2025-001'];
+    const paymentDocs=(data.attached||[]).map((d,i)=>({d,id:'doc-'+i})).filter(x=>x.d.type==='Payment Request'||x.d.type==='Payment Order');
+    if(paymentDocs.length){
+      const anySigned=paymentDocs.some(p=>SIGNED_PAYMENTS[p.id]);
+      if(!anySigned){ alert('Please open and sign the Payment Request or Payment Order (electronically or mark "Will sign physically") before approving.'); return; }
+    }
+    const note=(document.getElementById('directorNote').value||'').trim();
+    addAudit('Approved invoice','Director',note);
+    document.getElementById('panelStatus').textContent='Approved';
+    alert('Invoice approved (demo). Closing view.');
+    // Return to Director_Invoice_Management.html after approval
+    window.location.href = 'Director_Invoice_Management.html';
+  });
+
+  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='Director_Invoice_Management.html');
+  document.getElementById('closePanelFooter').addEventListener('click', ()=> window.location.href='Director_Invoice_Management.html');
+
+  (function init(){
+    const inv=getQueryParam('inv')||'INV-2025-001'; const data=INVOICE_DB[inv]||INVOICE_DB['INV-2025-001'];
+    document.getElementById('panelTitle').textContent=data.id;
+    document.getElementById('detailInvId').textContent=data.id;
+    document.getElementById('detailSubtitle').textContent=data.subtitle;
+    document.getElementById('vendorName').textContent=data.vendor;
+    document.getElementById('infoDate').textContent=data.date;
+    document.getElementById('infoTotal').textContent=data.total;
+
+    const vtb=document.getElementById('viewTableBody'); vtb.innerHTML='';
+    data.lines.forEach(l=>{ const amt=(l.qty*l.unit)+(l.tax||0); const tr=document.createElement('tr'); tr.innerHTML=`<td style="padding:8px">${escapeHtml(l.desc)}</td><td style="padding:8px">${l.qty}</td><td style="padding:8px">$${l.unit.toFixed(2)}</td><td style="padding:8px">$${(l.tax||0).toFixed(2)}</td><td style="padding:8px">$${amt.toFixed(2)}</td>`; vtb.appendChild(tr); });
+
+    const tbody=document.getElementById('detailLines'); tbody.innerHTML='';
+    data.lines.forEach(l=>{ const amt=(l.qty*l.unit)+(l.tax||0); const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(l.desc)}</td><td>${l.qty}</td><td>$${l.unit.toFixed(2)}</td><td>$${(l.tax||0).toFixed(2)}</td><td>$${amt.toFixed(2)}</td>`; tbody.appendChild(tr); });
+
+    renderSupportList(data.attached||[]);
+    computeTotals();
+    renderAudit();
+  })();
+</script>
+</body>
+</html>

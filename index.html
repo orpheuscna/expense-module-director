@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Expense Module</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--blue:#0b5cff;--navy:#08306b;--muted:#6b7280;--bg:#f5f7fb;--card:#ffffff;--success:#12b76a;--warn:#f59e0b;--danger:#ef4444;--glass: rgba(11,92,255,0.06);}
+  *{box-sizing:border-box}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+  header{background:#fff;padding:16px 28px;border-bottom:1px solid #eef2f7;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-weight:700;color:var(--navy);font-size:18px}
+  nav{display:flex;gap:12px;align-items:center}
+  nav a{color:var(--navy);text-decoration:none;font-weight:600}
+  .wrap{max-width:1200px;margin:28px auto;padding:0 20px}
+  .grid{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
+  .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(12,20,40,0.06);border:1px solid rgba(12,20,40,0.04)}
+  .row{display:flex;gap:12px;align-items:center}
+  h1{margin:0;color:var(--navy);font-size:22px}
+  .lead{color:var(--muted);margin-top:6px}
+  .summary{display:flex;gap:12px;margin-top:14px}
+  .sum-card{flex:1;padding:14px;border-radius:10px;background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px solid rgba(11,92,255,0.06)}
+  .sum-title{font-size:13px;color:var(--muted);font-weight:600}
+  .sum-value{font-size:20px;color:var(--navy);font-weight:700;margin-top:6px}
+  .chart-wrap{margin-top:18px}
+  .chart{width:100%;height:260px;background:linear-gradient(180deg,#ffffff,#fbfdff);border-radius:10px;padding:10px;border:1px solid rgba(11,92,255,0.04)}
+  .small{font-size:13px;color:var(--muted)}
+  .timeline{margin-top:12px}
+  .timeline .event{padding:8px;border-left:3px solid var(--glass);margin-bottom:10px;background:#fff;border-radius:8px;border:1px solid rgba(2,6,23,0.03)}
+  .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
+  .status-pill{padding:6px 8px;border-radius:999px;font-weight:700;font-size:13px;display:inline-block}
+  .s-pending{background:#fff7ed;color:#9a5800}
+  .s-under{background:#fff7ed;color:#9a5800}
+  .s-approved{background:#ecfdf5;color:var(--success)}
+  .s-rejected{background:#fff1f2;color:var(--danger)}
+  .icon-btn{background:transparent;border:0;cursor:pointer;padding:8px;border-radius:8px;display:inline-flex;align-items:center}
+
+  /* Make Reports and Invoice buttons identical */
+  #invoiceBtn { all: unset; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; color:var(--navy); font-weight:700; cursor:pointer; text-decoration:none; }
+  #invoiceBtn:hover{ background:rgba(11,92,255,0.03); }
+
+  #reportsBtn { all: unset; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; color:var(--navy); font-weight:700; cursor:pointer; text-decoration:none; }
+  #reportsBtn:hover{ background:rgba(11,92,255,0.03); }
+
+  .dropdown{position:absolute;right:0;top:44px;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(2,6,23,.12);border:1px solid rgba(2,6,23,.04);overflow:hidden;width:420px;max-width:calc(100vw - 40px);z-index:60}
+  .dropdown .head{padding:12px 14px;font-weight:700;border-bottom:1px solid #f1f5f9}
+  .dropdown .body{max-height:420px;overflow:auto;padding:12px 14px}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 6px;text-align:left;border-bottom:1px solid #f1f5f9;color:#0f172a}
+  th{font-weight:700;color:var(--muted);font-size:12px}
+  a.inv { color:var(--navy); font-weight:700; text-decoration:none; cursor:pointer; }
+  a.inv:hover { text-decoration:underline; }
+  .small-muted{font-size:12px;color:var(--muted)}
+  .clickable-num { color:var(--blue); font-weight:800; text-decoration:underline; cursor:pointer; }
+  /* report modal */
+  .report-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:820px;max-width:calc(100% - 32px);background:#fff;border-radius:12px;padding:18px;box-shadow:0 30px 60px rgba(2,6,23,0.18);z-index:900;display:none}
+  .report-header{display:flex;justify-content:space-between;align-items:center}
+  .report-body{margin-top:12px;max-height:60vh;overflow:auto}
+  .export-pdf{background:var(--navy);color:#fff;padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+  @media(max-width:1000px){ .grid{grid-template-columns:1fr} .right-panel{order:2} .left-panel{order:1} .dropdown{width:320px} .report-modal{width:92%} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Expense Module</div>
+  <nav>
+    <!-- Invoice Management first -->
+    <div style="position:relative">
+      <a id="invoiceBtn" href="Director_Invoice_Management.html" title="Invoice Management" role="button">Invoice Management</a>
+    </div>
+
+    <div style="position:relative">
+      <button id="reportsBtn" aria-haspopup="true" aria-expanded="false" title="Reports">Reports</button>
+      <div id="reportsMenu" class="dropdown" role="menu" aria-hidden="true" style="display:none">
+        <div class="head">Reports</div>
+        <div class="body">
+          <button data-action="monthly" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Monthly Expense</button>
+          <button data-action="top5" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Top Contributors</button>
+          <button data-action="audit" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Approvals Audit</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:relative">
+      <button id="notifBtn" class="icon-btn" aria-haspopup="true" aria-expanded="false" title="Notifications">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M15 17H9a2 2 0 0 1-2-2V11a6 6 0 0 1 12 0v4a2 2 0 0 1-2 2Z" stroke="#0b5cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="#0b5cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="notifBadge" style="display:inline-block;background:#ef4444;color:#fff;border-radius:999px;padding:4px 7px;font-size:12px;margin-left:6px;min-width:28px;text-align:center;box-shadow:0 4px 10px rgba(239,68,68,.18);transform-origin:center">3</span>
+      </button>
+      <div id="notifMenu" class="dropdown" role="menu" aria-hidden="true" style="display:none;width:360px">
+        <div class="head">Notifications <div style="float:right;font-weight:600"><button id="markAllBtn" style="background:transparent;border:0;color:#0b5cff;cursor:pointer;font-weight:700">Mark all read</button></div></div>
+        <div class="body" id="notifList">
+          <div class="notif-item" data-read="false" style="padding:8px;border-bottom:1px solid #f8fafc"><div style="font-weight:700"><a class="inv" data-inv="INV-2025-002">INV-2025-002</a></div><div style="font-size:13px;color:#6b7280">Submitted by Assistant • 2 hours ago</div></div>
+          <div class="notif-item" data-read="false" style="padding:8px;border-bottom:1px solid #f8fafc"><div style="font-weight:700"><a class="inv" data-inv="INV-2025-001">INV-2025-001</a></div><div style="font-size:13px;color:#6b7280">Pending director review • Yesterday</div></div>
+          <div class="notif-item" data-read="false" style="padding:8px"><div style="font-weight:700"><a class="inv" data-inv="INV-2025-003">INV-2025-003</a></div><div style="font-size:13px;color:#6b7280">Monthly report ready</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:relative">
+      <button id="userBtn" aria-haspopup="true" aria-expanded="false" class="icon-btn" title="Account">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden><circle cx="12" cy="12" r="11" fill="#eef6ff" stroke="#0b5cff" stroke-width="1.2"></circle><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="#0b5cff"/><path d="M4 20c1.5-3 6-4 8-4s6.5 1 8 4" stroke="#0b5cff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div id="userMenu" class="dropdown" role="menu" aria-hidden="true" style="display:none;width:220px">
+        <div class="head" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700">Director</div>
+            <div class="small-muted">Luke@company.com</div>
+          </div>
+        </div>
+        <div class="body"><button data-menu="profile" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Profile</button><button data-menu="settings" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Settings</button><button id="signOutBtn" style="width:100%;padding:10px;border-radius:8px;border:0;background:#ef4444;color:#fff;cursor:pointer;margin-top:6px">Sign out</button></div>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+    <section class="left-panel">
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><div><h1>Hello, Luke</h1><div class="lead">Expense Dashboard</div></div></div>
+
+        <div class="summary" aria-hidden="false">
+          <div class="sum-card">
+            <div class="sum-title">Pending Reviews</div>
+            <div class="sum-value" id="pendingCountWrap"><a id="pendingNumLink" class="clickable-num" href="Director_Invoice_Management.html">8</a></div>
+            <div class="small" style="margin-top:8px">Invoices awaiting Director approval</div>
+          </div>
+          <div class="sum-card"><div class="sum-title">Total Invoices</div><div class="sum-value" id="totalCount">24</div><div class="small" style="margin-top:8px">This month</div></div>
+          <div class="sum-card"><div class="sum-title">Total Value</div><div class="sum-value" id="totalValue">$28,430</div><div class="small" style="margin-top:8px">This month</div></div>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart" role="img" aria-label="Expenses vs Revenue chart showing months January to October and Y-axis values 30k to 120k">
+            <!-- SVG chart -->
+            <svg viewBox="0 0 820 260" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%">
+              <defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#e6f0ff"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>
+              <rect x="0" y="0" width="100%" height="100%" fill="url(#g1)"></rect>
+              <g fill="#94a3b8" font-size="12" text-anchor="end" font-family="Inter, system-ui, Arial">
+                <text x="48" y="40">120k</text>
+                <text x="48" y="90">90k</text>
+                <text x="48" y="140">60k</text>
+                <text x="48" y="190">30k</text>
+              </g>
+              <g stroke="#eef4ff" stroke-width="1">
+                <line x1="60" x2="780" y1="30" y2="30"></line>
+                <line x1="60" x2="780" y1="80" y2="80"></line>
+                <line x1="60" x2="780" y1="130" y2="130"></line>
+                <line x1="60" x2="780" y1="180" y2="180"></line>
+              </g>
+              <g stroke="#dbeafe" stroke-width="1"><line x1="60" x2="60" y1="20" y2="200"></line></g>
+              <polyline fill="none" stroke="#0b5cff" stroke-width="3" points="60,150 140,130 220,90 300,60 380,80 460,70 540,90 620,100 700,80 780,60"></polyline>
+              <polyline fill="none" stroke="#9aaedb" stroke-width="2" points="60,160 140,155 220,150 300,145 380,148 460,142 540,145 620,150 700,148 780,145"></polyline>
+              <g fill="#94a3b8" font-size="12" text-anchor="middle" font-family="Inter, system-ui, Arial">
+                <text x="60"  y="225">Jan</text>
+                <text x="140" y="225">Feb</text>
+                <text x="220" y="225">Mar</text>
+                <text x="300" y="225">Apr</text>
+                <text x="380" y="225">May</text>
+                <text x="460" y="225">Jun</text>
+                <text x="540" y="225">Jul</text>
+                <text x="620" y="225">Aug</text>
+                <text x="700" y="225">Sep</text>
+                <text x="780" y="225">Oct</text>
+              </g>
+              <g font-family="Inter, system-ui, Arial" font-size="13" fill="#0f172a">
+                <text x="780" y="20" text-anchor="end" font-weight="700">Total: $28,430</text>
+              </g>
+            </svg>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:12px;align-items:center">
+            <div class="card" style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><strong>Category Breakdown</strong><div class="small">Top 4 categories</div></div><div class="small">Last 30 days</div></div>
+              <div style="display:flex;gap:12px;margin-top:12px;align-items:center">
+                <div style="width:120px;height:120px"><svg viewBox="0 0 32 32" style="width:100%;height:100%"><circle r="10" cx="16" cy="16" fill="transparent" stroke="#eef2ff" stroke-width="10"></circle><circle r="10" cx="16" cy="16" fill="transparent" stroke="#0b5cff" stroke-width="10" stroke-dasharray="40 60" stroke-dashoffset="25"></circle><circle r="10" cx="16" cy="16" fill="transparent" stroke="#9aaedb" stroke-width="10" stroke-dasharray="25 75" stroke-dashoffset="-15"></circle></svg></div>
+                <div style="flex:1"><div class="small"><strong>Office Supplies</strong> <div class="small-muted">$7,200</div></div><div style="height:8px"></div><div class="small"><strong>Travel</strong> <div class="small-muted">$5,120</div></div><div style="height:8px"></div><div class="small"><strong>Rent</strong> <div class="small-muted">$9,000</div></div><div style="height:8px"></div><div class="small"><strong>Entertainment</strong> <div class="small-muted">$7,110</div></div></div>
+              </div>
+            </div>
+
+            <div style="width:320px" class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><strong>Pending Reviews</strong><div class="small">Needs Director action</div></div><div style="text-align:right"><div class="num" style="font-weight:700;color:var(--navy);font-size:20px" id="pendingNumDisplay">8</div></div></div>
+              <div class="timeline" id="pendingList" style="margin-top:12px">
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-001">INV-2025-001</a></strong><div class="small">ABC Supplies • $1,250 • 2 attachments</div></div>
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-002">INV-2025-002</a></strong><div class="small">Travel Co • $420 • 1 attachment</div></div>
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-003">INV-2025-003</a></strong><div class="small">OfficeMax • $210 • 0 attachments</div></div>
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-004">INV-2025-004</a></strong><div class="small">Catering Ltd • $980 • 1 attachment</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="right-panel">
+      <!-- Top 5 contributors card -->
+      <div class="card" id="topContributorsCard" style="margin-bottom:12px">
+        <strong>Top 5 Contributors (This Month)</strong>
+        <div class="small" style="margin-top:8px">Vendors contributing most to expense this month</div>
+        <div id="top5List" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <strong>Recent Activity</strong>
+        <div class="small" style="margin-top:8px">Latest system events and actions</div>
+        <div style="margin-top:10px">
+          <div class="small" style="margin-bottom:8px"><strong><a class="inv" data-inv="INV-2025-002">INV-2025-002</a></strong> submitted by Assistant • 2 hours ago</div>
+          <div class="small" style="margin-bottom:8px"><strong><a class="inv" data-inv="INV-2025-001">INV-2025-001</a></strong> edited by Assistant • 1 day ago</div>
+          <div class="small" style="margin-bottom:8px"><strong><a class="inv" data-inv="INV-2025-003">INV-2025-003</a></strong> approved by Director • 3 days ago</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- Report modal (added) -->
+<div id="reportModal" class="report-modal" role="dialog" aria-hidden="true">
+  <div class="report-header">
+    <div style="font-weight:800" id="reportTitle">Report</div>
+    <div style="display:flex;gap:8px">
+      <button id="downloadReportPdf" class="export-pdf">Download PDF</button>
+      <button id="closeReportModal" class="action-btn">Close</button>
+    </div>
+  </div>
+  <div class="report-body" id="reportBody"></div>
+</div>
+
+<script>
+  // Elements
+  const invoiceBtn = document.getElementById('invoiceBtn');
+  const reportsBtn = document.getElementById('reportsBtn'), reportsMenu = document.getElementById('reportsMenu');
+  const notifBtn = document.getElementById('notifBtn'), notifMenu = document.getElementById('notifMenu');
+  const userBtn = document.getElementById('userBtn'), userMenu = document.getElementById('userMenu');
+
+  function closeAll(){
+    if(reportsMenu) reportsMenu.style.display='none';
+    if(notifMenu) notifMenu.style.display='none';
+    if(userMenu) userMenu.style.display='none';
+    if(reportsBtn) reportsBtn.setAttribute('aria-expanded','false');
+    if(notifBtn) notifBtn.setAttribute('aria-expanded','false');
+    if(userBtn) userBtn.setAttribute('aria-expanded','false');
+  }
+
+  // Toggle handlers
+  if(reportsBtn) reportsBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const open = reportsMenu.style.display==='block'; closeAll(); reportsMenu.style.display = open ? 'none' : 'block'; reportsBtn.setAttribute('aria-expanded', String(!open)); });
+  if(notifBtn) notifBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const open = notifMenu.style.display==='block'; closeAll(); notifMenu.style.display = open ? 'none' : 'block'; notifBtn.setAttribute('aria-expanded', String(!open)); });
+  if(userBtn) userBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const open = userMenu.style.display==='block'; closeAll(); userMenu.style.display = open ? 'none' : 'block'; userBtn.setAttribute('aria-expanded', String(!open)); });
+
+  // User menu actions
+  document.getElementById('signOutBtn').addEventListener('click', ()=>{ closeAll(); alert('Signed out (demo).'); });
+
+  // Report modal helpers
+  const reportModal = document.getElementById('reportModal');
+  const reportTitle = document.getElementById('reportTitle');
+  const reportBody = document.getElementById('reportBody');
+  const downloadReportPdf = document.getElementById('downloadReportPdf');
+  const closeReportModalBtn = document.getElementById('closeReportModal');
+
+  function openReportModal(title, html){
+    reportTitle.textContent = title;
+    reportBody.innerHTML = html;
+    reportModal.style.display = 'block';
+    reportModal.setAttribute('aria-hidden','false');
+  }
+  function closeReportModal(){
+    reportModal.style.display = 'none';
+    reportModal.setAttribute('aria-hidden','true');
+  }
+  closeReportModalBtn.addEventListener('click', closeReportModal);
+
+  // Simple "export to PDF" by opening a printable window
+  downloadReportPdf.addEventListener('click', ()=> {
+    const title = reportTitle.textContent;
+    const content = reportBody.innerHTML;
+    const styles = `body{font-family:Inter,Arial,Helvetica,sans-serif;color:#0f172a;padding:20px} table{width:100%;border-collapse:collapse} th,td{padding:8px;border:1px solid #eee;text-align:left}`;
+    const win = window.open('', '_blank', 'noopener');
+    if(!win){ alert('Popup blocked. Allow popups to export PDF.'); return; }
+    win.document.write(`<html><head><meta charset="utf-8"><title>${title}</title><style>${styles}</style></head><body><h1>${title}</h1>${content}</body></html>`);
+    win.document.close();
+    setTimeout(()=>{ win.focus(); win.print(); }, 400);
+  });
+
+  // Reports menu action: generate report in-page (no navigation)
+  if(reportsMenu){
+    reportsMenu.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-action]');
+      if(!btn) return;
+      const action = btn.getAttribute('data-action');
+      closeAll();
+      if(action === 'monthly') generateMonthlyReport();
+      else if(action === 'top5') generateTop5Report();
+      else if(action === 'audit') generateAuditReport();
+    });
+  }
+
+  // Demo invoices data (used by reports)
+  const invoices = [
+    { number:'INV-2101', vendor:'Alpha Corp', date:'2025-10-01', amount:1200, category:'Consulting' },
+    { number:'INV-2102', vendor:'Beta Travel', date:'2025-10-02', amount:450, category:'Travel' },
+    { number:'INV-2103', vendor:'Gamma Supplies', date:'2025-10-05', amount:320, category:'Office Supplies' },
+    { number:'INV-2104', vendor:'Delta Catering', date:'2025-10-03', amount:980, category:'Entertainment' },
+    { number:'INV-2105', vendor:'Epsilon Maintenance', date:'2025-10-09', amount:620, category:'Maintenance' },
+    { number:'INV-2106', vendor:'Zeta Consulting', date:'2025-10-12', amount:5400, category:'Consulting' },
+    { number:'INV-2107', vendor:'Stationery Co', date:'2025-10-15', amount:75, category:'Office Supplies' },
+    { number:'INV-2108', vendor:'Logistics Inc', date:'2025-10-18', amount:1500, category:'Logistics' },
+    { number:'INV-2109', vendor:'Omega Security', date:'2025-10-20', amount:2100, category:'Security' },
+    { number:'INV-2110', vendor:'Beta Travel', date:'2025-10-21', amount:300, category:'Travel' },
+    { number:'INV-2111', vendor:'Alpha Corp', date:'2025-10-25', amount:800, category:'Consulting' },
+    { number:'INV-2112', vendor:'Delta Catering', date:'2025-10-05', amount:400, category:'Entertainment' },
+    { number:'INV-2113', vendor:'Gamma Supplies', date:'2025-10-29', amount:150, category:'Office Supplies' },
+    { number:'INV-2114', vendor:'Zeta Consulting', date:'2025-10-30', amount:2200, category:'Consulting' }
+  ];
+
+  // Report generators
+  function generateMonthlyReport(){
+    const month = 10, year = 2025;
+    const items = invoices.filter(i => {
+      const d = new Date(i.date + 'T00:00:00');
+      return d.getMonth()+1 === month && d.getFullYear() === year;
+    });
+    const total = items.reduce((s,x)=>s + x.amount, 0);
+    const byCat = {};
+    items.forEach(i => byCat[i.category] = (byCat[i.category]||0) + i.amount);
+
+    let html = `<p class="small-muted">Month: ${month}/${year} • Invoices: ${items.length} • Total: $${total.toFixed(2)}</p>`;
+    html += '<h4>Category breakdown</h4><table><thead><tr><th>Category</th><th style="text-align:right">Amount</th><th style="text-align:right">Share</th></tr></thead><tbody>';
+    Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).forEach(k=>{
+      const amt = byCat[k], pct = total ? (amt/total*100).toFixed(1) : '0.0';
+      html += `<tr><td>${k}</td><td style="text-align:right">$${amt.toFixed(2)}</td><td style="text-align:right">${pct}%</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    html += '<h4 style="margin-top:12px">Invoices</h4><table><thead><tr><th>Invoice #</th><th>Vendor</th><th>Date</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
+    items.forEach(i => html += `<tr><td>${i.number}</td><td>${i.vendor}</td><td>${i.date}</td><td style="text-align:right">$${i.amount.toFixed(2)}</td></tr>`);
+    html += '</tbody></table>';
+
+    openReportModal('Monthly Expense', html);
+  }
+
+  function generateTop5Report(){
+    const month = 10, year = 2025;
+    const items = invoices.filter(i => {
+      const d = new Date(i.date + 'T00:00:00');
+      return d.getMonth()+1 === month && d.getFullYear() === year;
+    });
+    const total = items.reduce((s,x)=>s + x.amount,0);
+    const byVendor = {};
+    items.forEach(i => byVendor[i.vendor] = (byVendor[i.vendor]||0) + i.amount);
+    const vendors = Object.keys(byVendor).map(v=>({ vendor:v, amount: byVendor[v], pct: total? byVendor[v]/total*100:0 })).sort((a,b)=>b.amount-a.amount);
+
+    let html = `<p class="small-muted">Month: ${month}/${year} • Total: $${total.toFixed(2)}</p>`;
+    html += '<h4>Top 5 Contributors</h4>';
+    vendors.slice(0,5).forEach((v,i)=> html += `<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #f1f5f9"><div><strong>${i+1}. ${v.vendor}</strong><div class="small-muted">${v.pct.toFixed(1)}% of total</div></div><div style="font-weight:700;color:var(--navy)">$${v.amount.toFixed(2)}</div></div>`);
+    html += '<h4 style="margin-top:12px">All vendors</h4><table><thead><tr><th>Vendor</th><th style="text-align:right">Amount</th><th style="text-align:right">Share</th></tr></thead><tbody>';
+    vendors.forEach(v=> html += `<tr><td>${v.vendor}</td><td style="text-align:right">$${v.amount.toFixed(2)}</td><td style="text-align:right">${v.pct.toFixed(1)}%</td></tr>`);
+    html += '</tbody></table>';
+
+    openReportModal('Top 5 Contributors', html);
+  }
+
+  function generateAuditReport(){
+    let html = `<p class="small-muted">Approvals audit (demo)</p>`;
+    html += '<table><thead><tr><th>Invoice</th><th>Action</th><th>Actor</th><th>Date</th></tr></thead><tbody>';
+    invoices.forEach(inv=>{
+      html += `<tr><td>${inv.number}</td><td>Submitted</td><td>Assistant</td><td>${inv.date}</td></tr>`;
+      if(inv.amount > 1000) html += `<tr><td>${inv.number}</td><td>Flagged</td><td>System</td><td>${inv.date}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    openReportModal('Approvals Audit', html);
+  }
+
+  // Invoice click handlers: open Director view
+  function openInvoiceDetail(id){
+    window.location.href = 'Director_View_Invoice.html?inv=' + encodeURIComponent(id);
+  }
+  document.querySelectorAll('a.inv').forEach(el=>{
+    el.addEventListener('click', e=>{
+      e.preventDefault();
+      const id = el.getAttribute('data-inv');
+      closeAll();
+      openInvoiceDetail(id);
+    });
+  });
+
+  // Make the big underlined "8" go to Director_Invoice_Management
+  const pendingNumLink = document.getElementById('pendingNumLink');
+  if(pendingNumLink){
+    pendingNumLink.setAttribute('role','button');
+    pendingNumLink.setAttribute('aria-label','View pending invoices');
+    // href already points to Director_Invoice_Management.html
+  }
+
+  // Notifications: badge and mark all read
+  const notifBadge = document.getElementById('notifBadge'), markAllBtn = document.getElementById('markAllBtn');
+  function updateBadge(){ const unread = Array.from(document.querySelectorAll('.notif-item[data-read="false"]')).length; notifBadge.textContent = unread; notifBadge.style.display = unread === 0 ? 'none' : 'inline-block'; }
+  updateBadge();
+  if(markAllBtn) markAllBtn.addEventListener('click', (e)=>{ e.stopPropagation(); Array.from(document.querySelectorAll('.notif-item')).forEach(n=>n.setAttribute('data-read','true')); updateBadge(); });
+
+  const notifList = document.getElementById('notifList');
+  if(notifList){
+    notifList.addEventListener('click', e=>{
+      const item = e.target.closest('.notif-item'); if(!item) return;
+      item.setAttribute('data-read','true'); updateBadge(); closeAll();
+      const link = item.querySelector('a.inv'); if(link){ openInvoiceDetail(link.getAttribute('data-inv')); } else { alert('Open notification detail (demo).'); }
+    });
+  }
+
+  // Top 5 contributors right panel render (demo)
+  const sampleTopVendors = [
+    { vendor: 'Zeta Consulting', amount: 7600 },
+    { vendor: 'Alpha Corp', amount: 2000 },
+    { vendor: 'Omega Security', amount: 2100 },
+    { vendor: 'Delta Catering', amount: 1380 },
+    { vendor: 'Beta Travel', amount: 750 }
+  ];
+  function renderTop5(){
+    const container = document.getElementById('top5List');
+    if(!container) return;
+    container.innerHTML = '';
+    sampleTopVendors.slice(0,5).forEach((v,i)=>{
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.justifyContent = 'space-between';
+      row.style.alignItems = 'center';
+      row.style.padding = '8px';
+      row.style.borderRadius = '8px';
+      row.style.border = '1px solid #eef3fb';
+      row.style.background = '#fbfdff';
+      row.innerHTML = `<div><div style="font-weight:700">${i+1}. ${v.vendor}</div><div class="small-muted" style="margin-top:4px">${Math.round((v.amount/28430)*1000)/10}% of total</div></div><div style="font-weight:700;color:var(--navy)">$${v.amount.toLocaleString()}</div>`;
+      container.appendChild(row);
+    });
+  }
+  renderTop5();
+
+  // Close on outside click or Escape
+  window.addEventListener('click', ()=> closeAll());
+  window.addEventListener('keydown', (e)=> { if(e.key === 'Escape') { closeAll(); closeReportModal(); } });
+</script>
+</body>
+</html>

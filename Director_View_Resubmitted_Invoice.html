@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoice Review — Director View</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --blue: #0b5cff;
+      --navy: #08306b;
+      --muted: #6b7280;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Inter, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: #0f172a;
+    }
+
+    .panel {
+      width: 100vw;
+      height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+      background: #fff;
+      display: grid;
+      grid-template-columns: 40% 60%;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.08);
+    }
+
+    .panel .viewer { background: #f8fafc; display: flex; flex-direction: column; }
+    .panel header { padding: 12px 16px; border-bottom: 1px solid #eef2f7; display:flex; justify-content:space-between; align-items:center; }
+    .small { font-size: 13px; color: var(--muted); }
+    .fld { margin-bottom: 8px; }
+    .fld label { display:block; font-size:12px; color:var(--muted); font-weight:700; margin-bottom:6px; }
+    .fld input, .fld select, .fld textarea { width:100%; padding:10px; border-radius:8px; border:1px solid #e6eef6; font-size:14px; }
+    .action-btn { background:#f3f4f6; border-radius:8px; padding:6px 10px; border:1px solid #e6eef6; cursor:pointer; }
+    .upload-neutral { background:transparent; color:var(--navy); padding:8px 12px; border-radius:8px; font-weight:700; cursor:pointer; border:0; }
+    table.line-items { width:100%; border-collapse:collapse; font-size:14px; margin-top:8px; }
+    table.line-items th, table.line-items td { padding:8px; border-bottom:1px solid #f1f5f9; text-align:left; }
+    table.line-items th { background:#fbfdff; font-weight:700; color:var(--muted); }
+    .support-list { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+    .support-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px dashed #eef4ff; border-radius:8px; background:#fff; }
+    .support-item .meta { display:flex; flex-direction:column; gap:4px; }
+    .support-item .meta > div:first-child { font-size:13px; font-weight:700; }
+    .support-item .tag { font-size:12px; color:var(--muted); }
+    .support-header { font-weight:800; font-size:16px; margin-bottom:6px; }
+    .totals-block { display:flex; justify-content:flex-end; margin-top:12px; align-items:flex-end; }
+    .totals-inner { width:320px; }
+    .small-muted { color:var(--muted); font-size:13px; }
+    .btn { padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-size:14px; }
+    .btn-primary { background:var(--blue); color:#fff; }
+    .btn-danger { background:var(--danger); color:#fff; }
+    .btn-outline { background:#fff; border:1px solid #e6eef6; color:var(--navy); }
+
+    .modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,0.45); display:none; align-items:center; justify-content:center; z-index:800; }
+    .modal { width:720px; background:#fff; border-radius:12px; padding:16px; box-shadow:0 20px 60px rgba(2,6,23,0.3); }
+    .modal h3 { margin:0 0 8px 0; }
+
+    .audit-list { font-size:13px; color:var(--muted); margin-top:12px; max-height:140px; overflow:auto; }
+
+    #panelTitle { display:block; }
+    #panelStatus { margin-top:12px; }
+    #detailInvId { display:block; }
+    #detailSubtitle { margin-top:12px; margin-bottom:14px; }
+    #vendorName { margin-bottom:14px; }
+    #infoDate { margin-top:12px; }
+
+    .doc-viewer { border:1px solid #e6eef6; border-radius:8px; background:#fff; padding:12px; max-height:560px; overflow:auto; }
+    .doc-actions { display:flex; gap:8px; margin-top:10px; justify-content:flex-end; }
+
+    .pr, .po, .contract { font-size:14px; line-height:1.45; color:#0f172a; }
+    .pr .header, .po .header, .contract .c-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+    .pr .box { border:1px solid #eef4ff; padding:10px; border-radius:8px; background:#fbfdff; }
+    .po .box { border:1px solid #eef4ff; padding:10px; border-radius:8px; background:#fffaf6; }
+    .contract .box { border:1px solid #eef4ff; padding:10px; border-radius:8px; background:#fff; }
+    .signature-area { margin-top:16px; border-top:1px dashed #e6eef6; padding-top:10px; display:flex; justify-content:space-between; align-items:center; }
+
+    .badge-resubmitted {
+      display: inline-block;
+      background: #fff4e6;
+      color: #92400e;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 1000px) {
+      .panel { grid-template-columns: 1fr; }
+      .panel .viewer { height: 36vh; }
+      .modal { width: 96%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="panel" role="main" aria-labelledby="panelTitle">
+    <!-- Left: Viewer -->
+    <div class="viewer" role="region" aria-label="Invoice preview">
+      <header>
+        <div>
+          <strong id="panelTitle">INV-2025-001</strong>
+          <span class="badge-resubmitted">Resubmitted</span>
+          <div class="small" id="panelStatus" style="margin-top:4px">Needs Director action</div>
+        </div>
+        <div>
+          <button id="closeBtn" class="action-btn" title="Back to dashboard">Close</button>
+        </div>
+      </header>
+
+      <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; height:calc(100% - 64px)">
+        <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
+          <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
+
+          <div style="display:flex;justify-content:space-between;margin-top:8px">
+            <div><strong>Invoice</strong> <span id="viewInvId">INV-2025-001</span></div>
+            <div><strong>Date</strong> <span id="viewDate">2025-10-25</span></div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;margin-top:8px">
+            <div><strong>Bill To</strong><br/><span id="viewBillTo">HR Department, Company XYZ</span></div>
+            <div><strong>Due</strong> <span id="viewDue">2025-11-24</span></div>
+          </div>
+
+          <div style="margin-top:12px;font-weight:700">Items</div>
+
+          <table style="width:100%;border-collapse:collapse;margin-top:8px">
+            <thead>
+              <tr style="background:#fbfdff">
+                <th style="text-align:left;padding:8px">Description</th>
+                <th style="padding:8px;width:80px">Qty</th>
+                <th style="padding:8px;width:120px">Unit</th>
+                <th style="padding:8px;width:120px">Tax</th>
+                <th style="padding:8px;width:140px">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="viewTableBody">
+              <tr><td style="padding:8px">Printer paper A4</td><td style="padding:8px">10</td><td style="padding:8px">$7.50</td><td style="padding:8px">$0.00</td><td style="padding:8px">$75.00</td></tr>
+              <tr><td style="padding:8px">Toner cartridge</td><td style="padding:8px">3</td><td style="padding:8px">$75.00</td><td style="padding:8px">$0.00</td><td style="padding:8px">$225.00</td></tr>
+            </tbody>
+          </table>
+
+          <div class="totals-block" style="margin-top:12px">
+            <div class="totals-inner" id="viewTotals">
+              <div style="display:flex;justify-content:space-between"><div class="small-muted">Subtotal</div><div style="font-weight:800" id="viewSubtotal">$300.00</div></div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px"><div class="small-muted">Total Tax</div><div style="font-weight:800" id="viewTotalTax">$0.00</div></div>
+              <div style="border-top:1px solid #eef4ff;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:900">Grand Total</div><div style="font-weight:900" id="viewGrandTotal">$300.00</div></div>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;font-size:13px;color:var(--muted)" id="viewAttached">Attached: PaymentRequest_INV-2025-001.pdf, PaymentOrder_INV-2025-001.pdf, Contract_2025_01.pdf</div>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <button class="action-btn viewer-btn" data-zoom="-1">Zoom −</button>
+          <button class="action-btn viewer-btn" data-zoom="1">Zoom +</button>
+          <button class="action-btn" id="downloadDoc">Download</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Review Details for Director -->
+    <div style="padding:0;display:flex;flex-direction:column;overflow:auto" role="region" aria-label="Invoice review">
+      <div style="padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center">
+            <div style="font-weight:800" id="detailInvId">INV-2025-001</div>
+            <span class="badge-resubmitted">Resubmitted</span>
+          </div>
+          <div class="small" id="detailSubtitle">Uploaded: 2025-10-26 • Vendor: ACME Supplies Co.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="approveBtn" class="btn btn-primary">Approve</button>
+          <button id="requestBtn" class="btn btn-outline">Request Changes</button>
+          <button id="rejectBtn" class="btn btn-danger">Reject</button>
+        </div>
+      </div>
+
+      <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+        <div>
+          <label class="small-muted">Vendor</label>
+          <div style="font-weight:700" id="vendorName">ACME Supplies Co.</div>
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <div style="flex:1">
+            <label class="small-muted">Invoice Date</label>
+            <div id="infoDate">2025-10-25</div>
+          </div>
+          <div style="width:180px">
+            <label class="small-muted">Total</label>
+            <div id="infoTotal" style="font-weight:800">$300.00</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:700;margin-bottom:6px">Line items</div>
+          <table class="line-items" id="lineItemsTable" aria-label="Line items table">
+            <thead>
+              <tr><th style="width:40%">Description</th><th style="width:12%">Quantity</th><th style="width:16%">Unit Price</th><th style="width:16%">Tax</th><th style="width:16%">Amount</th></tr>
+            </thead>
+            <tbody id="detailLines">
+              <tr><td>Printer paper A4</td><td>10</td><td>$7.50</td><td>$0.00</td><td>$75.00</td></tr>
+              <tr><td>Toner cartridge</td><td>3</td><td>$75.00</td><td>$0.00</td><td>$225.00</td></tr>
+            </tbody>
+          </table>
+
+          <div class="totals-block" style="margin-top:8px">
+            <div class="totals-inner">
+              <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Subtotal</div><div id="subtotalDisplay" style="font-weight:800">$300.00</div></div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Total Tax</div><div id="totalTaxDisplay" style="font-weight:800">$0.00</div></div>
+              <div style="border-top:1px solid #eef4ff;margin-top:6px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:800">Grand Total</div><div id="grandTotalDisplay" style="font-weight:900">$300.00</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="support-header">Supporting documents</div>
+          <div id="supportList" class="support-list" aria-live="polite">
+            <div class="support-item"><div class="meta"><div>PaymentRequest_INV-2025-001.pdf</div><div class="tag small">Payment Request</div></div><div style="display:flex;gap:8px"><button class="action-btn view-support">View</button><button class="action-btn download-support">Download</button></div></div>
+            <div class="support-item"><div class="meta"><div>PaymentOrder_INV-2025-001.pdf</div><div class="tag small">Payment Order</div></div><div style="display:flex;gap:8px"><button class="action-btn view-support">View</button><button class="action-btn download-support">Download</button></div></div>
+            <div class="support-item"><div class="meta"><div>Contract_2025_01.pdf</div><div class="tag small">Contract</div></div><div style="display:flex;gap:8px"><button class="action-btn view-support">View</button><button class="action-btn download-support">Download</button></div></div>
+          </div>
+          <div class="small-muted" style="margin-top:8px">Open Payment Request and Payment Order and sign electronically or mark "Will sign physically". Open contract to review terms. Approve when signing is complete.</div>
+        </div>
+
+        <div>
+          <label class="small-muted">Director notes</label>
+          <textarea id="directorNote" rows="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef6"></textarea>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+          <button id="closePanelFooter" class="action-btn">Close</button>
+        </div>
+
+        <div style="margin-top:6px">
+          <div style="font-weight:700">Audit trail</div>
+          <div class="audit-list" id="auditList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Minimal script and demo data; only navigation targets changed to Director_Invoice_Management.html as requested.
+    (function(){
+      function $(id){ return document.getElementById(id); }
+      function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'" :'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]); }
+      function addAudit(msg){ const list=$('auditList'); const d=document.createElement('div'); d.style.padding='8px'; d.style.borderBottom='1px solid #f1f5f9'; d.innerHTML = `<div style="font-weight:700">${escapeHtml(msg)}</div><div class="small-muted">${new Date().toLocaleString()}</div>`; list.insertBefore(d, list.firstChild); }
+
+      $('closeBtn').addEventListener('click', ()=> window.location.href = 'Director_Invoice_Management.html');
+      $('closePanelFooter').addEventListener('click', ()=> window.location.href = 'Director_Invoice_Management.html');
+
+      $('approveBtn').addEventListener('click', ()=> {
+        // Demo approve; then return to management
+        addAudit('Approved (demo)');
+        alert('Approved (demo)');
+        window.location.href = 'Director_Invoice_Management.html';
+      });
+
+      $('requestBtn').addEventListener('click', ()=>{
+        const reason = prompt('Reason for request changes (demo):','Please correct vendor code');
+        if(!reason) return;
+        addAudit('Requested changes: ' + reason);
+        alert('Request changes sent (demo).');
+        window.location.href = 'Director_Invoice_Management.html';
+      });
+
+      $('rejectBtn').addEventListener('click', ()=>{
+        const reason = prompt('Reason for rejection (demo):','Incorrect expense category');
+        if(!reason) return;
+        addAudit('Rejected: ' + reason);
+        alert('Rejected (demo).');
+        window.location.href = 'Director_Invoice_Management.html';
+      });
+
+      // Hook support list buttons (demo behavior)
+      document.querySelectorAll('.support-list .support-item').forEach(item=>{
+        const view = item.querySelector('.view-support');
+        const dl = item.querySelector('.download-support');
+        if(view) view.addEventListener('click', ()=> alert('Open document (demo): '+ item.querySelector('.meta > div').textContent));
+        if(dl) dl.addEventListener('click', ()=> alert('Download document (demo): '+ item.querySelector('.meta > div').textContent));
+      });
+
+      // Initialize small demo values
+      $('panelTitle').textContent = 'INV-2025-001';
+      $('detailInvId').textContent = 'INV-2025-001';
+      $('detailSubtitle').textContent = 'Resubmitted by Assistant • 2025-10-27';
+      $('vendorName').textContent = 'ACME Supplies Co.';
+      $('infoDate').textContent = '2025-10-25';
+      $('infoTotal').textContent = '$300.00';
+      addAudit('Viewed by Director (demo)');
+    })();
+  </script>
+</body>
+</html>
+```

@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Invoice Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--blue:#0b5cff;--navy:#08306b;--muted:#6b7280;--bg:#f5f7fb;--card:#ffffff;--success:#12b76a;--warn:#f59e0b;--danger:#ef4444;}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+    .wrap{max-width:1200px;margin:28px auto;padding:16px}
+    .card{background:var(--card);border-radius:10px;padding:12px;border:1px solid rgba(2,6,23,0.06);box-shadow:0 6px 20px rgba(12,20,40,0.04)}
+    h2{margin:0 0 12px 0;color:var(--navy)}
+    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+    .filter{padding:8px;border:1px solid #e6eef6;border-radius:8px;background:#fff}
+    .table{width:100%;border-collapse:collapse}
+    .table th, .table td{padding:10px 8px;text-align:left;border-bottom:1px solid #f1f5f9;font-size:14px;vertical-align:middle}
+    .table th{font-weight:700;color:var(--muted);font-size:12px}
+    .status{padding:6px 8px;border-radius:999px;font-weight:700;font-size:12px;display:inline-block}
+    .s-pending-review{background:#fff7ed;color:#9a5800}
+    .s-pending-approval{background:#fff7ed;color:#9a5800}
+    .s-paid{background:#ecfdf5;color:var(--success)}
+    .s-rejected{background:#fff1f2;color:var(--danger)}
+    .s-sent-trg{background:#eef6ff;color:var(--blue)}
+    .s-to-be-paid{background:#fff7ed;color:var(--navy)}
+    .compact{font-size:13px;color:var(--muted)}
+    .actions button{margin-left:6px;padding:6px 10px;border-radius:8px;border:1px solid #e6eef6;background:#fff;cursor:pointer}
+    th.amount, td.amount{width:140px;text-align:right;padding-right:18px}
+    th.status, td.status{min-width:140px}
+    .detail-panel{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:flex-end;padding:40px;pointer-events:none}
+    .detail-card{width:920px;max-width:calc(100% - 48px);pointer-events:auto;background:#fff;border-radius:12px;padding:18px;border:1px solid rgba(2,6,23,0.06);box-shadow:0 30px 60px rgba(2,6,23,0.18);display:grid;grid-template-columns:1fr 380px;gap:18px}
+    .detail-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+    .btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+    .btn-primary{background:var(--blue);color:#fff}
+    .btn-outline{background:#fff;border:1px solid #e6eef6;color:var(--navy)}
+    .field{display:flex;flex-direction:column;margin-bottom:8px}
+    .input, .select, textarea{padding:8px;border-radius:8px;border:1px solid #e6eef6;background:#fbfdff;font-family:inherit}
+    .attachments{height:420px;background:#f8fafc;border-radius:8px;border:1px dashed #e6eef6;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+    .line-items{border-top:1px solid #f1f5f9;margin-top:12px;padding-top:12px}
+    .li-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #fbfdff}
+    .audit{font-size:13px;color:var(--muted);margin-top:12px;max-height:160px;overflow:auto}
+    .bulk-bar{display:flex;gap:8px;align-items:center;padding:8px;background:#fff;border-radius:8px;border:1px solid #eef3fb;margin-bottom:12px}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:600}
+    .modal{width:520px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3)}
+    .reason-box{width:100%;height:100px;padding:8px;border-radius:8px;border:1px solid #e6eef6}
+    .toast{position:fixed;right:20px;bottom:20px;background:#08306b;color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 8px 24px rgba(2,6,23,0.25);display:none}
+    .dir-approve { background: #d1fae5; color: #08306b; border-color:#12b76a; font-weight:700; }
+    @media(max-width:980px){ .detail-card{grid-template-columns:1fr} .attachments{height:220px} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div><h2>Invoice Management</h2></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar" id="directorControls">
+        <input id="d_q" class="filter" placeholder="Search vendor or invoice #" style="width:260px" />
+        <label class="compact">From</label><input id="d_dateFrom" type="date" class="filter" />
+        <label class="compact">To</label><input id="d_dateTo" type="date" class="filter" />
+        <select id="d_categoryFilter" class="filter">
+          <option value="">All categories</option>
+          <option>Office Supplies</option>
+          <option>Travel</option>
+          <option>Rent</option>
+          <option>Entertainment</option>
+          <option>Consulting</option>
+          <option>Logistics</option>
+          <option>Maintenance</option>
+        </select>
+
+        <div id="showCompletedWrap" style="display:flex;align-items:center;gap:8px;margin-left:6px">
+          <label class="compact">Show completed</label>
+          <input id="showCompleted" type="checkbox" />
+        </div>
+
+        <div style="flex:1"></div>
+        <div id="directorBulkBar" class="bulk-bar" style="display:none">
+          <div class="compact">Bulk actions for selected:</div>
+          <button id="bulkApprove" class="btn dir-approve">Approve</button>
+          <button id="bulkRequest" class="btn btn-outline">Request Changes</button>
+          <button id="bulkReject" class="btn btn-outline" style="color:var(--danger);border-color:#fee2e2">Reject</button>
+        </div>
+      </div>
+
+      <table class="table" id="inboxTable" aria-label="Invoice management">
+        <thead>
+          <tr>
+            <th scope="col" style="width:36px"><input id="selectAll" type="checkbox" /></th>
+            <th scope="col">Vendor</th>
+            <th scope="col">Invoice #</th>
+            <th scope="col">Date</th>
+            <th scope="col" class="amount">Amount</th>
+            <th scope="col" class="status">Status</th>
+            <th scope="col" style="width:320px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="inboxBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="detailPanel" class="detail-panel" role="dialog" aria-modal="true">
+    <div class="detail-card card" role="document">
+      <div>
+        <div class="detail-header">
+          <button id="backToInbox" class="btn btn-outline">← Back to list</button>
+          <div style="flex:1"></div>
+          <div id="detailId" class="compact" style="color:var(--muted)"></div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-bottom:12px">
+          <div style="flex:1">
+            <div style="display:flex;gap:8px">
+              <div style="flex:1">
+                <div class="field"><label class="compact">Vendor</label><input id="dVendor" class="input" /></div>
+              </div>
+              <div style="width:160px">
+                <div class="field"><label class="compact">Invoice #</label><input id="dNumber" class="input" /></div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px">
+              <div class="field" style="flex:1"><label class="compact">Date</label><input id="dDate" type="date" class="input" /></div>
+              <div class="field" style="width:160px"><label class="compact">Amount</label><input id="dAmount" class="input" /></div>
+            </div>
+          </div>
+
+          <div style="width:380px">
+            <div id="directorToolbar" style="display:flex;gap:8px;margin-bottom:8px">
+              <button id="dirApprove" class="btn dir-approve">Approve</button>
+              <button id="dirRequest" class="btn btn-outline">Request Changes</button>
+              <button id="dirReject" class="btn btn-outline" style="color:var(--danger);border-color:#fee2e2">Reject</button>
+            </div>
+
+            <div class="compact" style="color:var(--muted)">Status</div>
+            <div id="detailStatus" class="status s-pending-approval" style="margin-top:6px;width:140px;text-align:center"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <div style="font-weight:700;margin-bottom:8px">Attachment</div>
+            <div class="attachments" id="attachmentViewer">Attachment viewer placeholder</div>
+
+            <div class="line-items">
+              <div style="font-weight:700;margin:8px 0">Line items</div>
+              <div id="lineItems"></div>
+              <div style="display:flex;justify-content:flex-end;margin-top:8px;font-weight:700">Total: <span id="lineTotal" style="margin-left:8px">$0.00</span></div>
+            </div>
+
+            <div class="audit">
+              <div style="font-weight:700;margin-top:12px">History</div>
+              <div id="historyList"></div>
+            </div>
+          </div>
+
+          <div style="width:380px">
+            <div style="font-weight:700;margin-bottom:8px">Extracted data</div>
+            <div class="field"><label class="compact">PO</label><input id="dPO" class="input" /></div>
+            <div class="field"><label class="compact">Tax</label><input id="dTax" class="input" /></div>
+            <div class="field"><label class="compact">Category</label><select id="dCategory" class="select"><option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Consulting</option><option>Logistics</option><option>Maintenance</option></select></div>
+            <div style="margin-top:12px;font-weight:700">Add comment</div>
+            <textarea id="note" rows="4" class="input" style="resize:none"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button id="saveMeta" class="btn btn-primary">Save</button>
+              <button id="downloadPDF" class="btn btn-outline">Download PDF</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div style="font-weight:700;margin-bottom:8px" id="modalTitle">Reason</div>
+      <textarea id="modalReason" class="reason-box" placeholder="Enter reason (required)"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+        <button id="modalCancel" class="btn btn-outline">Cancel</button>
+        <button id="modalConfirm" class="btn btn-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    /* Data: extended sample rows */
+    let invoices = [
+      { id:'inv-101', vendor:'Alpha Corp', number:'INV-2101', date:'2025-10-01', amount:1200.00, status:'pending_approval', category:'Consulting', items:[{desc:'Advisory',qty:1,price:1200}], history:['Submitted by assistant • 2h ago'] },
+      { id:'inv-102', vendor:'Beta Travel', number:'INV-2102', date:'2025-10-02', amount:450.00, status:'pending_approval', category:'Travel', items:[{desc:'Taxi',qty:1,price:50},{desc:'Meals',qty:1,price:400}], history:['Submitted by assistant • 1h ago'] },
+      { id:'inv-103', vendor:'Gamma Supplies', number:'INV-2103', date:'2025-09-30', amount:320.00, status:'pending_approval', category:'Office Supplies', items:[{desc:'Printer cartridges',qty:2,price:160}], history:['Submitted by assistant • Yesterday'] },
+      { id:'inv-104', vendor:'Delta Catering', number:'INV-2104', date:'2025-10-03', amount:980.00, status:'pending_approval', category:'Entertainment', items:[{desc:'Event lunch',qty:1,price:980}], history:['Submitted by assistant • 30m ago'] },
+      { id:'inv-105', vendor:'Epsilon Maintenance', number:'INV-2105', date:'2025-09-28', amount:620.00, status:'pending_approval', category:'Maintenance', items:[{desc:'Repair',qty:1,price:620}], history:['Submitted by assistant • 3h ago'] },
+      { id:'inv-006', vendor:'Logistics Inc', number:'INV-1006', date:'2025-09-25', amount:1500.00, status:'to_be_paid', category:'Logistics', items:[{desc:'Freight',qty:1,price:1500}], history:['Scheduled for payment • Tomorrow'] },
+      { id:'inv-007', vendor:'Stationery Co', number:'INV-1007', date:'2025-10-02', amount:75.00, status:'pending_review', category:'Office Supplies', items:[{desc:'Pens',qty:15,price:5}], history:['Uploaded • 1h ago'] },
+      { id:'inv-008', vendor:'Maintenance Co', number:'INV-1008', date:'2025-10-03', amount:620.00, status:'pending_review', category:'Maintenance', items:[{desc:'Repair',qty:1,price:620}], history:['Submitted • 30m ago'] },
+      { id:'inv-109', vendor:'Sigma IT', number:'INV-2115', date:'2025-10-06', amount:1320.00, status:'pending_approval', category:'IT Services', items:[{desc:'Support retainer',qty:1,price:1320}], history:['Submitted by assistant • 4h ago'] },
+      { id:'inv-110', vendor:'Pacific Rentals', number:'INV-2116', date:'2025-10-07', amount:560.00, status:'pending_approval', category:'Rent', items:[{desc:'Equipment rental',qty:1,price:560}], history:['Submitted by assistant • 2h ago'] },
+      { id:'inv-111', vendor:'Green Gardens', number:'INV-2117', date:'2025-10-08', amount:295.00, status:'completed', category:'Maintenance', items:[{desc:'Landscaping',qty:1,price:295}], history:['Completed • 1d ago'], archivedCompleted: true, completionTag: 'Sent to TRG' },
+      { id:'inv-112', vendor:'Sunrise Media', number:'INV-2118', date:'2025-10-09', amount:820.00, status:'completed', category:'Marketing', items:[{desc:'Ad placement',qty:1,price:820}], history:['Completed • 2025-10-10'], archivedCompleted: true, completionTag: 'Will be reimbursed on payday' },
+      { id:'inv-113', vendor:'Blue Bistro', number:'INV-2119', date:'2025-10-05', amount:430.00, status:'completed', category:'Entertainment', items:[{desc:'Event catering',qty:1,price:430}], history:['Completed • 2025-10-09'], archivedCompleted: true, completionTag: 'Will pay in cash' }
+    ];
+
+    const $ = id => document.getElementById(id);
+    function toast(msg){ const t = $('toast'); t.textContent = msg; t.style.display = 'block'; setTimeout(()=> t.style.display = 'none', 2600); }
+
+    function inDateRange(invDateISO, fromISO, toISO){
+      if(!fromISO && !toISO) return true;
+      const invD = new Date(invDateISO + 'T00:00:00');
+      if(fromISO){ const fromD = new Date(fromISO + 'T00:00:00'); if(invD < fromD) return false; }
+      if(toISO){ const toD = new Date(toISO + 'T23:59:59'); if(invD > toD) return false; }
+      return true;
+    }
+
+    function createCompletionTagSelect() {
+      const sel = document.createElement('select');
+      sel.id = 'completionTagFilter';
+      sel.className = 'filter';
+      sel.style.maxWidth = '200px';
+      sel.innerHTML = '<option value="">Any completion tag</option>'
+                    + '<option>Sent to TRG</option>'
+                    + '<option>Will be reimbursed on payday</option>'
+                    + '<option>Will pay in cash</option>'
+                    + '<option>Rejected</option>';
+      sel.addEventListener('input', () => renderInbox());
+      return sel;
+    }
+    function removeInjectedCompletionTagSelect() {
+      const existing = document.getElementById('completionTagFilter');
+      if (existing && existing.parentElement && existing.parentElement.id === 'showCompletedWrap') {
+        existing.remove();
+      }
+    }
+
+    function renderInbox(){
+      const tbody = $('inboxBody'); tbody.innerHTML = '';
+      const q = ($('d_q') && $('d_q').value.toLowerCase()) || '';
+      const from = $('d_dateFrom') ? $('d_dateFrom').value : '';
+      const to = $('d_dateTo') ? $('d_dateTo').value : '';
+      const cat = $('d_categoryFilter') ? $('d_categoryFilter').value : '';
+      const showCompleted = $('showCompleted') && $('showCompleted').checked;
+      const tagFilterEl = document.getElementById('completionTagFilter');
+      const tagFilter = tagFilterEl ? (tagFilterEl.value || '').trim() : '';
+
+      invoices.forEach(inv=>{
+        if(showCompleted){
+          if(!inv.archivedCompleted) return;
+        } else {
+          if(inv.archivedCompleted) return;
+          if(inv.status !== 'pending_approval') return;
+        }
+
+        if(cat && cat !== '' && inv.category !== cat) return;
+        if(!inDateRange(inv.date, from, to)) return;
+        if(q){
+          const matches = (inv.vendor||'').toLowerCase().includes(q) || (inv.number||'').toLowerCase().includes(q);
+          if(!matches) return;
+        }
+        if(tagFilter){
+          if ((inv.completionTag||'') !== tagFilter) return;
+        }
+
+        const tr = document.createElement('tr'); tr.dataset.id = inv.id;
+        const tdCheck = document.createElement('td'); const chk = document.createElement('input'); chk.type='checkbox'; chk.className='row-select'; chk.dataset.id = inv.id; tdCheck.appendChild(chk); tr.appendChild(tdCheck);
+        const tdVendor = document.createElement('td'); tdVendor.textContent = inv.vendor || ''; tr.appendChild(tdVendor);
+        const tdNumber = document.createElement('td'); tdNumber.textContent = inv.number || ''; tr.appendChild(tdNumber);
+        const tdDate = document.createElement('td'); tdDate.textContent = inv.date || ''; tr.appendChild(tdDate);
+        const tdAmount = document.createElement('td'); tdAmount.className='amount'; tdAmount.textContent = '$' + (Number(inv.amount||0)).toFixed(2); tr.appendChild(tdAmount);
+
+        const tdStatus = document.createElement('td'); tdStatus.className='status';
+        const span = document.createElement('span');
+        if(inv.archivedCompleted){ span.className = 'status s-paid'; span.textContent = 'Completed'; } else { span.className = 'status s-pending-approval'; span.textContent = 'Pending Approval'; }
+        tdStatus.appendChild(span); tr.appendChild(tdStatus);
+
+        const tdActions = document.createElement('td'); tdActions.className='compact actions';
+        const btnOpen = document.createElement('button'); btnOpen.className='btn btn-outline open'; btnOpen.textContent='Open'; btnOpen.dataset.id = inv.id; tdActions.appendChild(btnOpen);
+        const btnApprove = document.createElement('button'); btnApprove.className='btn dir-approve'; btnApprove.textContent='Approve'; btnApprove.dataset.id = inv.id; tdActions.appendChild(btnApprove);
+        const btnRequest = document.createElement('button'); btnRequest.className='btn btn-outline dir-request'; btnRequest.textContent='Request Changes'; btnRequest.dataset.id = inv.id; tdActions.appendChild(btnRequest);
+        const btnReject = document.createElement('button'); btnReject.className='btn btn-outline dir-reject'; btnReject.textContent='Reject'; btnReject.dataset.id = inv.id; btnReject.style.color='var(--danger)'; btnReject.style.borderColor='#fee2e2'; tdActions.appendChild(btnReject);
+
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll('.row-select').forEach(cb=>{
+        cb.onchange = ()=> {
+          const any = document.querySelectorAll('.row-select:checked').length > 0;
+          $('directorBulkBar').style.display = any ? 'flex' : 'none';
+        };
+      });
+    }
+
+    function openDetail(id){
+      const inv = invoices.find(i=>i.id===id); if(!inv) return;
+      $('detailId').textContent = inv.number || '';
+      $('dVendor').value = inv.vendor || '';
+      $('dNumber').value = inv.number || '';
+      $('dDate').value = inv.date || '';
+      $('dAmount').value = (Number(inv.amount||0)).toFixed(2);
+      $('dCategory').value = inv.category || '';
+      $('dPO').value = inv.po || '';
+      $('dTax').value = inv.tax || '';
+      $('detailStatus').textContent = 'Pending Approval';
+      $('detailStatus').className = 'status s-pending-approval';
+      $('attachmentViewer').textContent = inv.attachmentUrl ? ('Attachment: ' + inv.attachmentUrl) : ('Attachment placeholder for ' + inv.number);
+      const parts = $('lineItems'); parts.innerHTML=''; let total=0;
+      (inv.items||[]).forEach(li=>{
+        const row = document.createElement('div'); row.className='li-row';
+        const left = document.createElement('div'); left.style.flex='1'; left.textContent = li.desc || '';
+        const small = document.createElement('div'); small.className='compact'; small.style.color='var(--muted)'; small.textContent = `x${li.qty} @ $${li.price}`;
+        left.appendChild(small);
+        const right = document.createElement('div'); right.style.width='120px'; right.style.textAlign='right';
+        const lineTotal = (li.qty||0)*(li.price||0); total += lineTotal; right.textContent = '$' + lineTotal.toFixed(2);
+        row.appendChild(left); row.appendChild(right); parts.appendChild(row);
+      });
+      $('lineTotal').textContent = '$' + total.toFixed(2);
+      const hist = $('historyList'); hist.innerHTML=''; (inv.history||[]).forEach(h=>{ const d=document.createElement('div'); d.textContent=h; hist.appendChild(d); });
+
+      $('directorToolbar').style.display = 'flex';
+      $('detailPanel').style.display = 'flex';
+    }
+
+    $('backToInbox').addEventListener('click', ()=> $('detailPanel').style.display='none');
+
+    $('inboxBody').addEventListener('click', (e)=>{
+      const openBtn = e.target.closest('.open');
+      if(openBtn){
+        const id = openBtn.dataset.id;
+        const inv = invoices.find(i => i.id === id);
+        const num = inv ? inv.number : '';
+        if(num === 'INV-2102'){
+          window.location.href = 'Director_View_Resubmitted_Invoice.html?inv=' + encodeURIComponent(num);
+          return;
+        }
+        window.location.href = 'Director_View_Invoice.html?inv=' + encodeURIComponent(num || id);
+        return;
+      }
+      const apr = e.target.closest('.dir-approve'); if(apr){ approveAndReturn(apr.dataset.id); return; }
+      const req = e.target.closest('.dir-request'); if(req){ openModal('request', req.dataset.id); return; }
+      const rej = e.target.closest('.dir-reject'); if(rej){ openModal('reject', rej.dataset.id); return; }
+    });
+
+    function approveAndReturn(id){
+      const inv = invoices.find(i=>i.id===id); if(!inv) return;
+      if(inv.status !== 'pending_approval'){ toast('Invoice not in pending approval'); return; }
+      if(!confirm(`Approve ${inv.number} and return to Assistant?`)) return;
+      inv.status = 'pending_review';
+      inv.history = (inv.history||[]).concat([`Approved by Director • ${new Date().toLocaleString()} (returned to Assistant)`]);
+      renderInbox();
+      toast(`Approved ${inv.number} (returned to Assistant)`);
+    }
+
+    let modalContext = null;
+    function openModal(action, idOrIds){
+      modalContext = { action, ids: Array.isArray(idOrIds) ? idOrIds : [idOrIds] };
+      $('modalTitle').textContent = action.startsWith('request') ? 'Request Changes — reason' : 'Reject — reason';
+      $('modalReason').value = '';
+      $('modalBackdrop').style.display = 'flex';
+      $('modalBackdrop').setAttribute('aria-hidden','false');
+      $('modalReason').focus();
+    }
+    $('modalCancel').addEventListener('click', ()=> { $('modalBackdrop').style.display='none'; modalContext=null; });
+    $('modalConfirm').addEventListener('click', ()=>{
+      const reason = $('modalReason').value.trim();
+      if(!reason){ alert('Please enter a reason'); $('modalReason').focus(); return; }
+      if(!modalContext) return;
+      const { action, ids } = modalContext;
+      if(action==='request' || action==='request-multi'){
+        ids.forEach(id=>{
+          const inv = invoices.find(i=>i.id===id || i.number===id);
+          if(inv){
+            inv.status = 'request_changes';
+            inv.history = (inv.history||[]).concat([`Requested changes by Director • ${new Date().toLocaleString()}: ${reason}`]);
+          }
+        });
+        renderInbox(); toast(`Requested changes for ${ids.length} invoice(s)`);
+      } else {
+        ids.forEach(id=>{
+          const inv = invoices.find(i=>i.id===id || i.number===id);
+          if(inv){
+            inv.status = 'rejected';
+            inv.history = (inv.history||[]).concat([`Rejected by Director • ${new Date().toLocaleString()}: ${reason}`]);
+          }
+        });
+        renderInbox(); toast(`Rejected ${ids.length} invoice(s)`);
+      }
+      $('modalBackdrop').style.display='none'; modalContext=null;
+      $('detailPanel').style.display='none';
+    });
+
+    $('bulkApprove').addEventListener('click', ()=>{
+      const ids = Array.from(document.querySelectorAll('.row-select:checked')).map(cb=>cb.dataset.id);
+      if(ids.length===0) return;
+      if(!confirm(`Approve ${ids.length} invoice(s) and return to Assistant?`)) return;
+      ids.forEach(id=>{
+        const inv = invoices.find(i=>i.id===id);
+        if(inv && inv.status==='pending_approval'){
+          inv.status='pending_review';
+          inv.history = (inv.history||[]).concat([`Approved by Director • ${new Date().toLocaleString()} (returned to Assistant)`]);
+        }
+      });
+      renderInbox(); toast(`Approved ${ids.length} invoices`);
+    });
+
+    document.getElementById('showCompleted').addEventListener('change', ()=>{
+      const wrap = document.getElementById('showCompletedWrap');
+      const existing = document.getElementById('completionTagFilter');
+      if(existing) existing.remove();
+      if(document.getElementById('showCompleted').checked){
+        const sel = createCompletionTagSelect();
+        wrap.appendChild(sel);
+        setTimeout(()=> sel.focus(), 100);
+      }
+      renderInbox();
+    });
+
+    function createCompletionTagSelect() {
+      const sel = document.createElement('select');
+      sel.id = 'completionTagFilter';
+      sel.className = 'filter';
+      sel.style.maxWidth = '200px';
+      sel.innerHTML = '<option value="">Any completion tag</option>'
+                    + '<option>Sent to TRG</option>'
+                    + '<option>Will be reimbursed on payday</option>'
+                    + '<option>Will pay in cash</option>'
+                    + '<option>Rejected</option>';
+      sel.addEventListener('input', () => renderInbox());
+      return sel;
+    }
+
+    // initial render
+    renderInbox();
+  </script>
+</body>
+</html>
