@@ -1,9 +1,7 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-	<!-- build-version: 2025-10-13-1 -->
-  <meta name="build-version" content="2025-10-13-2">
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Invoice Management</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -49,6 +47,10 @@
     .dir-approve { background: #d1fae5; color: #08306b; border-color:#12b76a; font-weight:700; }
     @media(max-width:980px){ .detail-card{grid-template-columns:1fr} .attachments{height:220px} }
   </style>
+
+  <!-- SheetJS for XLSX export -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/shim.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -76,8 +78,8 @@
           <option value="">All statuses</option>
           <option value="pending_approval">Pending Approval</option>
           <option value="pending_review">Pending Review</option>
-	  <option value="approved_electronic">Approved (Electronic)</option>
-	  <option value="approved_physical">Approved (Physical)</option>
+          <option value="approved_electronic">Approved (Electronic)</option>
+          <option value="approved_physical">Approved (Physical)</option>
           <option value="changes_requested">Changes Requested</option>
           <option value="rejected">Rejected</option>
         </select>
@@ -110,6 +112,27 @@
         </thead>
         <tbody id="inboxBody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Export Payments card (added) -->
+  <div class="wrap" style="margin-top:18px">
+    <div class="card">
+      <h3 style="margin:0 0 12px 0;color:var(--navy)">Export Payments</h3>
+      <div class="toolbar" style="gap:12px">
+       <label class="compact">Export type:</label>
+        <select id="exportType" class="filter">
+          <option value="all">All payment records</option>
+          <option value="vendors">Vendor payments only</option>
+          <option value="reimbursements">Employee reimbursements only</option>
+        </select>
+
+        <button id="exportCsvBtn" class="btn btn-primary">Export CSV</button>
+        <button id="exportXlsxBtn" class="btn btn-outline">Download XLSX</button>
+
+        <div style="flex:1"></div>
+        <div class="muted-inline" style="margin-top:8px">Exported data will download as CSV or XLSX and include employee columns.</div>
+      </div>
     </div>
   </div>
 
@@ -216,6 +239,23 @@
       { id:'inv-113', vendor:'Blue Bistro', number:'INV-2119', date:'2025-10-05', amount:430.00, status:'completed', category:'Entertainment', items:[{desc:'Event catering',qty:1,price:430}], history:['Completed • 2025-10-09'], archivedCompleted: true, completionTag: 'Will pay in cash' }
     ];
 
+    /* Option B: seed demo paymentRecords so exports contain data */
+    (function seedDemoPayments(){
+      const demoMap = {
+        'inv-111': [{ type:'pay', amount:150.00, method:'Bank transfer', ref:'TR-111', date:'2025-10-09', vendorName:'Green Gardens' }],
+        'inv-112': [{ type:'reimburse', amount:820.00, method:'Card', ref:'CC-112', date:'2025-10-10', vendorName:'Sunrise Media', employeeId:'E-7001', employeeName:'Nguyen A' }],
+        'inv-101': [{ type:'pay', amount:1200.00, method:'Bank transfer', ref:'TR-101', date:'2025-10-02', vendorName:'Alpha Corp' }]
+      };
+      invoices.forEach(inv => {
+        if(demoMap[inv.id]){
+          inv.paymentRecords = inv.paymentRecords || [];
+          demoMap[inv.id].forEach(p => inv.paymentRecords.push(Object.assign({}, p)));
+          const paid = inv.paymentRecords.reduce((s,r)=> s + (Number(r.amount) || 0), 0);
+          inv.balanceRemaining = Math.max(0, Number(inv.amount || 0) - paid);
+        }
+      });
+    })();
+
     const $ = id => document.getElementById(id);
     function toast(msg){ const t = $('toast'); t.textContent = msg; t.style.display = 'block'; setTimeout(()=> t.style.display = 'none', 2600); }
 
@@ -313,7 +353,7 @@
 
       // wire row-select handlers to show bulk bar
       document.querySelectorAll('.row-select').forEach(cb=>{
-        cb.onchange = ()=> {
+        cb.onchange = () => {
           const any = document.querySelectorAll('.row-select:checked').length > 0;
           $('directorBulkBar').style.display = any ? 'flex' : 'none';
         };
@@ -389,7 +429,7 @@
       $('modalBackdrop').setAttribute('aria-hidden','false');
       $('modalReason').focus();
     }
-    $('modalCancel').addEventListener('click', ()=> { $('modalBackdrop').style.display='none'; modalContext=null; });
+    $('modalCancel').addEventListener('click', () => { $('modalBackdrop').style.display='none'; modalContext=null; });
     $('modalConfirm').addEventListener('click', ()=>{
       const reason = $('modalReason').value.trim();
       if(!reason){ alert('Please enter a reason'); $('modalReason').focus(); return; }
@@ -454,7 +494,119 @@
 
     // initial render
     renderInbox();
+
+    /* ----------------- Export logic (CSV + XLSX) ----------------- */
+
+    const EXPORT_COLUMNS = [
+      { key: 'invoiceId', header: 'Invoice ID' },
+      { key: 'invoiceNumber', header: 'Invoice Number' },
+      { key: 'invoiceDate', header: 'Invoice Date' },
+      { key: 'invoiceAmount', header: 'Invoice Amount' },
+      { key: 'balanceRemaining', header: 'Balance Remaining' },
+      { key: 'paymentType', header: 'Payment Type' },
+      { key: 'amount', header: 'Amount' },
+      { key: 'method', header: 'Method' },
+      { key: 'ref', header: 'Reference' },
+      { key: 'paymentDate', header: 'Payment Date' },
+      { key: 'vendorName', header: 'Vendor Name' },
+      { key: 'employeeId', header: 'Employee ID' },
+      { key: 'employeeName', header: 'Employee Name' }
+    ];
+
+    function buildExportRows(){
+      const rows = [];
+      (invoices || []).forEach(inv => {
+        (inv.paymentRecords || []).forEach(p => {
+          rows.push({
+            invoiceId: inv.id || '',
+            invoiceNumber: inv.number || '',
+            invoiceDate: inv.date || '',
+            invoiceAmount: inv.amount || 0,
+            balanceRemaining: inv.balanceRemaining || 0,
+            paymentType: p.type || '',
+            amount: p.amount || 0,
+            method: p.method || '',
+            ref: p.ref || '',
+            paymentDate: p.date || '',
+            vendorName: p.vendor || p.vendorName || '',
+            employeeId: p.employeeId || '',
+            employeeName: p.employeeName || ''
+          });
+        });
+      });
+      return rows;
+    }
+
+    function toCsv(rows, columns){
+      const escapeCell = val => {
+        if (val === null || typeof val === 'undefined') return '';
+        const s = String(val);
+        if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      };
+      const header = columns.map(c => escapeCell(c.header)).join(',');
+      const lines = rows.map(r => columns.map(c => escapeCell(r[c.key])).join(','));
+      return [header].concat(lines).join('\r\n');
+    }
+
+    function downloadBlob(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=> URL.revokeObjectURL(url), 5000);
+    }
+
+    function downloadCsv(text, filename){
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+      downloadBlob(blob, filename);
+    }
+
+    function downloadXlsx(rows, columns, filename){
+      const sheetRows = rows.map(r => {
+        const out = {};
+        columns.forEach(c => out[c.header] = r[c.key]);
+        return out;
+      });
+      const ws = XLSX.utils.json_to_sheet(sheetRows, { skipHeader: false });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Payments');
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      downloadBlob(blob, filename);
+    }
+
+    function makeFilename(ext){
+      const now = new Date(); const pad = n => String(n).padStart(2,'0');
+      return `payments-export-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.${ext}`;
+    }
+
+    document.getElementById('exportCsvBtn').addEventListener('click', ()=> {
+      const type = (document.getElementById('exportType') || {}).value || 'all';
+      const all = buildExportRows();
+      let filtered = all;
+      if (type === 'vendors') filtered = all.filter(r => r.paymentType === 'pay');
+      if (type === 'reimbursements') filtered = all.filter(r => r.paymentType === 'reimburse');
+      if (!filtered.length) { alert('No records to export for the selected filter.'); return; }
+      const csv = toCsv(filtered, EXPORT_COLUMNS);
+      downloadCsv(csv, makeFilename('csv'));
+    });
+
+    document.getElementById('exportXlsxBtn').addEventListener('click', ()=> {
+      const type = (document.getElementById('exportType') || {}).value || 'all';
+      const all = buildExportRows();
+      let filtered = all;
+      if (type === 'vendors') filtered = all.filter(r => r.paymentType === 'pay');
+      if (type === 'reimbursements') filtered = all.filter(r => r.paymentType === 'reimburse');
+      if (!filtered.length) { alert('No records to export for the selected filter.'); return; }
+      downloadXlsx(filtered, EXPORT_COLUMNS, makeFilename('xlsx'));
+    });
+
   </script>
 </body>
 </html>
-
